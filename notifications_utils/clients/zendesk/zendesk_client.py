@@ -1,6 +1,7 @@
 import dataclasses
 import datetime
 import enum
+import os
 import typing
 from urllib.parse import urlencode
 
@@ -56,11 +57,13 @@ class ZendeskClient:
     """
 
     # the account used to authenticate with. If no requester is provided, the ticket will come from this account.
-    NOTIFY_ZENDESK_EMAIL = "zd-api-notify@digital.cabinet-office.gov.uk"
+    NOTIFY_ZENDESK_EMAIL = os.getenv("NOTIFY_ZENDESK_EMAIL")
 
-    ZENDESK_TICKET_URL = "https://govuk.zendesk.com/api/v2/tickets.json"
-    ZENDESK_UPDATE_TICKET_URL = "https://govuk.zendesk.com/api/v2/tickets/{ticket_id}"
-    ZENDESK_UPLOAD_FILE_URL = "https://govuk.zendesk.com/api/v2/uploads.json"
+    ZENDESK_URL = os.getenv("ZENDESK_URL")
+
+    ZENDESK_TICKET_URL = f"{ZENDESK_URL}/api/v2/tickets.json"
+    ZENDESK_UPDATE_TICKET_URL = f"{ZENDESK_URL}/api/v2/tickets/{{ticket_id}}"
+    ZENDESK_UPLOAD_FILE_URL = f"{ZENDESK_URL}/api/v2/uploads.json"
 
     def __init__(self, api_key):
         self.api_key = api_key
