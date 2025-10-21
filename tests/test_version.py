@@ -7,7 +7,7 @@ import pytest
 from notifications_utils import version
 
 
-@pytest.mark.skip("[NOTIFYNL] Zendesk vars change")
+@pytest.mark.skip("[NOTIFYNL] Version mismatch from deviation")
 def test_changelog_matches_latest_version():
     changelog = Path("CHANGELOG.md")
     versions = [line.strip(" #") for line in changelog.read_text().splitlines() if re.match(r"## \d+\.\d+\.\d+$", line)]
