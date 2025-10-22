@@ -168,8 +168,8 @@ class NotifySupportTicket:
     PRIORITY_NORMAL = "normal"
     PRIORITY_LOW = "low"
 
-    TAGS_P2 = "govuk_notify_support"
-    TAGS_P1 = "govuk_notify_emergency"
+    TAGS_P2 = os.getenv("ZENDESK_TAGS_P2")
+    TAGS_P1 = os.getenv("ZENDESK_TAGS_P1")
 
     TYPE_PROBLEM = "problem"
     TYPE_INCIDENT = "incident"
@@ -177,10 +177,10 @@ class NotifySupportTicket:
     TYPE_TASK = "task"
 
     # Group: 3rd Line--Notify Support
-    NOTIFY_GROUP_ID = 360000036529
+    NOTIFY_GROUP_ID = os.getenv("ZENDESK_GROUP_ID")
     # Organization: GDS
-    NOTIFY_ORG_ID = 21891972
-    NOTIFY_TICKET_FORM_ID = 14226867890588
+    NOTIFY_ORG_ID = os.getenv("ZENDESK_ORG_ID")
+    NOTIFY_TICKET_FORM_ID = os.getenv("ZENDESK_TICKET_FORM_ID")
 
     def __init__(
         self,
