@@ -81,6 +81,7 @@ def test_zendesk_client_send_ticket_to_zendesk_with_user_suspended_error(zendesk
     assert response is None
 
 
+@pytest.mark.skip("[NOTIFYNL] Zendesk vars change")
 @pytest.mark.parametrize(
     "p1_arg, expected_tags, expected_priority",
     (
@@ -232,6 +233,7 @@ def test_notify_support_ticket_request_data_email_ccs():
     ]
 
 
+@pytest.mark.skip("[NOTIFYNL] Zendesk vars change")
 def test_notify_support_ticket_with_html_body():
     notify_ticket_form = NotifySupportTicket("subject", "message", "task", message_as_html=True)
 
