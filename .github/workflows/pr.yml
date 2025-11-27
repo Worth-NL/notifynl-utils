@@ -62,7 +62,7 @@ jobs:
         id: project
         run: |
           LATEST_RELEASE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r '.tag_name')
-          echo "version_release=$LATEST_RELEASE" >> $GITHUB_OUTPUT
+          echo "version_release = $LATEST_RELEASE"
 
       - name: Build [${{ matrix.python-version }}]
         run: uv build
