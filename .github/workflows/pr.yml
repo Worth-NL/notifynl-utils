@@ -114,8 +114,9 @@ jobs:
 
       - name: Commit bumped version
         if: steps.compare.outputs.needsBumping == 'true'
-        uses: offensive-vk/auto-commit-push@v7
+        uses: offensive-vk/auto-commit-push@v8
         with:
+          branch: ${{ github.head_ref || github.ref_name }}
           message: "🤖 chore: bump version to ${{ steps.bump.outputs.version_bumped }}"
           github-token: ${{ secrets.RELEASE_TOKEN }}
 
