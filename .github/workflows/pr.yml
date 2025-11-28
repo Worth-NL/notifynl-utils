@@ -112,8 +112,9 @@ jobs:
           token: ${{ secrets.RELEASE_TOKEN }}
 
       - name: Install package dependencies
+        if: steps.compare.outputs.needsBumping == 'true'
         run: |
-          uv pip install --upgrade pip
+          uv venv
           uv pip install -e .
 
       - name: Bump version
