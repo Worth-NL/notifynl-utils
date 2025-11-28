@@ -38,6 +38,9 @@ jobs:
           timezoneLinux: "Europe/Amsterdam"
 
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.RELEASE_TOKEN }}
 
       - uses: gerlero/apt-install@v1
         with:
@@ -78,7 +81,7 @@ jobs:
           set -e
 
           echo "Latest Github release tag: ${{ steps.release.outputs.version_release }}"
-          echo "Project version [EventsHandler.csproj]: ${{ steps.project.outputs.version_project }}"
+          echo "Project version: ${{ steps.project.outputs.version_project }}"
 
           compare_versions() {
             local v1=(${1//./ })  # Split LATEST_RELEASE into array
@@ -102,20 +105,6 @@ jobs:
             return 0
           }
           compare_versions "${{ steps.release.outputs.version_release }}" "${{ steps.project.outputs.version_project }}"
-
-      - name: Checkout code
-        if: steps.compare.outputs.needsBumping == 'true'
-        id: checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref }}
-          token: ${{ secrets.RELEASE_TOKEN }}
-
-      - name: Install package dependencies
-        if: steps.compare.outputs.needsBumping == 'true'
-        run: |
-          uv venv
-          uv pip install -e .
 
       - name: Bump version
         if: steps.compare.outputs.needsBumping == 'true'
