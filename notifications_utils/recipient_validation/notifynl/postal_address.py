@@ -215,7 +215,7 @@ class PostalAddress:
         )
 
         return cls(
-            address=address,
+            address,
             allow_international_letters=allow_international_letters,
         )
 
