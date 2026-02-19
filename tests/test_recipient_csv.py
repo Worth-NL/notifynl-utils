@@ -42,8 +42,8 @@ def _index_rows(rows):
 @pytest.mark.parametrize(
     "template_type, expected",
     (
-        ("email", ["e-mailadres"]),
-        ("sms", ["telefoonnummer"]),
+        ("email", ["email address"]),
+        ("sms", ["phone number"]),
         (
             "letter",
             [
@@ -207,7 +207,7 @@ def test_get_rows_does_no_error_checking_of_rows_or_cells(mocker):
 
     recipients = RecipientCSV(
         """
-            e-mailadres, name
+            email address, name
             a@b.com,
             a@b.com, My Name
             a@b.com,
@@ -370,7 +370,7 @@ def test_overly_big_list_stops_processing_rows_beyond_max(mocker):
     )
 
     big_csv = RecipientCSV(
-        "telefoonnummer,name\n" + ("07700900123,example\n" * 123),
+        "phone number,name\n" + ("07700900123,example\n" * 123),
         template=_sample_template("sms", content="hello ((name))"),
     )
     big_csv.max_rows = 10
@@ -425,7 +425,7 @@ def test_empty_column_names():
     [
         (
             """
-                telefoonnummer,name, date
+                phone number,name, date
                 +44 123,test1,today
                 +44456,    ,tomorrow
                 ,,
@@ -437,7 +437,7 @@ def test_empty_column_names():
         ),
         (
             """
-                e-mailadres,name,colour
+                email address,name,colour
                 test@example.com,test1,red
                 testatexampledotcom,test2,blue
             """,
@@ -447,7 +447,7 @@ def test_empty_column_names():
         ),
         (
             """
-                e-mailadres
+                email address
                 test@example.com,test1,red
                 testatexampledotcom,test2,blue
             """,
@@ -470,15 +470,15 @@ def test_get_recipient(file_contents, template, expected_recipients, expected_pe
     "file_contents,template,expected_recipients,expected_personalisation",
     [
         (
-            """e-mailadres,test
+            """email address,test
             test@example.com,test1,red
             testatexampledotcom,test2,blue
             """,
             _sample_template("email", "((test))"),
             [(0, "test@example.com"), (1, "testatexampledotcom")],
             [
-                {"emailadres": "test@example.com", "test": "test1"},
-                {"emailadres": "testatexampledotcom", "test": "test2"},
+                {"emailaddress": "test@example.com", "test": "test1"},
+                {"emailaddress": "testatexampledotcom", "test": "test2"},
             ],
         )
     ],
@@ -501,24 +501,24 @@ def test_get_recipient_respects_order(file_contents, template, expected_recipien
 @pytest.mark.parametrize(
     "file_contents,template_type,expected,expected_missing",
     [
-        ("", "sms", [], {"telefoonnummer", "name"}),
+        ("", "sms", [], {"phone number", "name"}),
         (
             """
-                telefoonnummer,name
+                phone number,name
                 07700900460,test1
                 07700900460,test1
                 07700900460,test1
             """,
             "sms",
-            ["telefoonnummer", "name"],
+            ["phone number", "name"],
             set(),
         ),
         (
             """
-                e-mailadres,name,colour
+                email address,name,colour
             """,
             "email",
-            ["e-mailadres", "name", "colour"],
+            ["email address", "name", "colour"],
             set(),
         ),
         (
@@ -531,10 +531,10 @@ def test_get_recipient_respects_order(file_contents, template, expected_recipien
         ),
         (
             """
-                e-mailadres,colour
+                email address,colour
             """,
             "email",
-            ["e-mailadres", "colour"],
+            ["email address", "colour"],
             {"name"},
         ),
         (
@@ -547,10 +547,10 @@ def test_get_recipient_respects_order(file_contents, template, expected_recipien
         ),
         (
             """
-                telefoonnummer,list,list,name,list
+                phone number,list,list,name,list
             """,
             "sms",
-            ["telefoonnummer", "list", "name"],
+            ["phone number", "list", "name"],
             set(),
         ),
     ],
@@ -575,7 +575,7 @@ def test_column_headers(file_contents, template_type, expected, expected_missing
     [
         pytest.param("", "sms", marks=pytest.mark.xfail),
         pytest.param("name", "sms", marks=pytest.mark.xfail),
-        pytest.param("e-mailadres", "sms", marks=pytest.mark.xfail),
+        pytest.param("email address", "sms", marks=pytest.mark.xfail),
         pytest.param(
             "address_line_1",
             "letter",
@@ -596,12 +596,12 @@ def test_column_headers(file_contents, template_type, expected, expected_missing
             "letter",
             marks=pytest.mark.xfail,
         ),
-        ("telefoonnummer", "sms"),
-        ("telefoonnummer,name", "sms"),
-        ("e-mailadres", "email"),
-        ("e-mailadres,name", "email"),
-        ("TELEFOONNUMMER", "sms"),
-        ("e-mailadres", "email"),
+        ("phone number", "sms"),
+        ("phone number,name", "sms"),
+        ("email address", "email"),
+        ("email address,name", "email"),
+        ("PHONENUMBER", "sms"),
+        ("email address", "email"),
         ("address_line_1, address_line_2, postcode", "letter"),
         ("address_line_1, address_line_2, address_line_7", "letter"),
         ("address_line_1, address_line_2, address_line_3", "letter"),
@@ -622,7 +622,7 @@ def test_recipient_column(content, file_contents, template_type):
     [
         (
             """
-                telefoonnummer,name,date
+                phone number,name,date
                 07700900460,test1,test1
                 07700900460,test1
                 +44 123,test1,test1
@@ -637,7 +637,7 @@ def test_recipient_column(content, file_contents, template_type):
         ),
         (
             """
-                telefoonnummer,name
+                phone number,name
                 07700900460,test1,test2
             """,
             "sms",
@@ -653,7 +653,7 @@ def test_recipient_column(content, file_contents, template_type):
         ),
         (
             """
-                ,,,,,,,,,telefoonnummer
+                ,,,,,,,,,phone number
                 ,,,,,,,,,07700900100
                 ,,,,,,,,,07700900100
             """,
@@ -791,7 +791,7 @@ def test_international_sms_limit(extra_args, too_many):
 def test_international_sms_limit_doesnt_apply_for_email(allow_international, remaining_international_sms_messages):
     recipients = RecipientCSV(
         """
-        e-mailadres,
+        email address,
         example@gmail.com
         """,
         template=_sample_template("email"),
@@ -983,7 +983,7 @@ def test_denys_invalid_numbers_when_should_validate_phone_number_set_to_true():
     )
     recipients = RecipientCSV(
         """
-            telefoonnummer
+            phone number
             077009004605425890423582904
             07700900461432482390483204
             077009004622342342340239489023
@@ -1004,7 +1004,7 @@ def test_allows_invalid_numbers_when_should_validate_phone_number_set_to_false()
     )
     recipients = RecipientCSV(
         """
-            telefoonnummer
+            phone number
             077009004605425890423582904
             07700900461432482390483204
             077009004622342342340239489023
@@ -1047,10 +1047,7 @@ def test_detects_rows_which_result_in_empty_messages():
         [
             [(key, expected) for key in group]
             for expected, group in [
-                (
-                    "07700900460",
-                    ("telefoonnummer", "   TELEFOONNUMMER", "telefoon_nummer", "telefoon-nummer", "telefoonNummer"),
-                ),
+                ("07700900460", ("phone number", "   PHONENUMBER", "phone_number", "phone-number", "phoneNumber")),
                 ("Jo", ("FIRSTNAME", "first name", "first_name ", "first-name", "firstName")),
                 ("Bloggs", ("Last    Name", "LASTNAME", "    last_name", "last-name", "lastName   ")),
             ]
@@ -1061,10 +1058,10 @@ def test_detects_rows_which_result_in_empty_messages():
 def test_ignores_spaces_and_case_in_placeholders(key, expected):
     recipients = RecipientCSV(
         """
-            telefoonnummer,FIRSTNAME, Last Name
+            phone number,FIRSTNAME, Last Name
             07700900460, Jo, Bloggs
         """,
-        template=_sample_template("sms", content="((telefoonnummer)) ((First Name)) ((lastname))"),
+        template=_sample_template("sms", content="((phone number)) ((First Name)) ((lastname))"),
     )
     first_row = recipients[0]
     assert first_row.get(key).data == expected
@@ -1102,18 +1099,18 @@ def test_ignores_leading_whitespace_in_file(character, name):
         assert unicodedata.name(character) == name
 
     recipients = RecipientCSV(
-        f"{character}e-mailadres\ntest@example.com",
+        f"{character}email address\ntest@example.com",
         template=_sample_template("email"),
     )
     first_row = recipients[0]
 
-    assert recipients.column_headers == ["e-mailadres"]
-    assert recipients.recipient_column_headers == ["e-mailadres"]
+    assert recipients.column_headers == ["email address"]
+    assert recipients.recipient_column_headers == ["email address"]
     assert recipients.missing_column_headers == set()
-    assert recipients.placeholders == ["e-mailadres"]
+    assert recipients.placeholders == ["email address"]
 
-    assert first_row.get("e-mailadres").data == "test@example.com"
-    assert first_row["e-mailadres"].data == "test@example.com"
+    assert first_row.get("email address").data == "test@example.com"
+    assert first_row["email address"].data == "test@example.com"
     assert first_row.recipient == "test@example.com"
 
     assert not recipients.has_errors
@@ -1131,7 +1128,7 @@ def test_error_if_too_many_recipients():
 
 def test_dont_error_if_too_many_recipients_not_specified():
     recipients = RecipientCSV(
-        "telefoonnummer,\n07700900460,\n07700900460,\n07700900460,",
+        "phone number,\n07700900460,\n07700900460,\n07700900460,",
         template=_sample_template("sms"),
     )
     assert not recipients.has_errors
@@ -1205,35 +1202,34 @@ def test_multiple_sms_recipient_columns(international_sms):
 
 
 @pytest.mark.parametrize(
-    "column_name",
-    ("telefoon_nummer", "telefoonnummer", "telefoon nummer", "telefoon-nummer", "t e l e f o o n  n u m m e r"),
+    "column_name", ("phone_number", "phonenumber", "phone number", "phone-number", "p h o n e  n u m b e r")
 )
 def test_multiple_sms_recipient_columns_with_missing_data(column_name):
     recipients = RecipientCSV(
         f"""
-            names, telefoonnummer, {column_name}
+            names, phone number, {column_name}
             "Joanna and Steve", 07900 900111
         """,
         template=_sample_template("sms"),
         allow_international_sms=True,
     )
-    expected_column_headers = ["names", "telefoonnummer"]
-    if column_name != "telefoonnummer":
+    expected_column_headers = ["names", "phone number"]
+    if column_name != "phone number":
         expected_column_headers.append(column_name)
     assert recipients.column_headers == expected_column_headers
-    assert recipients.column_headers_as_column_keys == {"telefoonnummer": "", "names": ""}.keys()
+    assert recipients.column_headers_as_column_keys == {"phonenumber": "", "names": ""}.keys()
     # A piece of weirdness uncovered: since rows are created before spaces in column names are normalised, when
     # there are duplicate recipient columns and there is data for only one of the columns, if the columns have the same
     # spacing, phone number data will be a list of this one phone number and None, while if the spacing style differs
     # between two duplicate column names, the phone number data will be None. If there are no duplicate columns
     # then our code finds the phone number well regardless of the spacing, so this should not affect our users.
     phone_number_data = None
-    if column_name == "telefoonnummer":
+    if column_name == "phone number":
         phone_number_data = ["07900 900111", None]
-    assert recipients.rows[0]["telefoonnummer"].data == phone_number_data
-    assert recipients.rows[0].get("telefoonnummer").error is None
-    expected_duplicated_columns = ["telefoonnummer"]
-    if column_name != "telefoonnummer":
+    assert recipients.rows[0]["phonenumber"].data == phone_number_data
+    assert recipients.rows[0].get("phone number").error is None
+    expected_duplicated_columns = ["phone number"]
+    if column_name != "phone number":
         expected_duplicated_columns.append(column_name)
     assert recipients.duplicate_recipient_column_headers == OrderedSet(expected_duplicated_columns)
     assert recipients.has_errors
@@ -1242,15 +1238,15 @@ def test_multiple_sms_recipient_columns_with_missing_data(column_name):
 def test_multiple_email_recipient_columns():
     recipients = RecipientCSV(
         """
-            EMAILADRES, e-mail_adres, foo
+            EMAILADDRESS, email_address, foo
             one@two.com,  two@three.com, bar
         """,
         template=_sample_template("email"),
     )
-    assert recipients.rows[0].get("e-mailadres").data == ("two@three.com")
-    assert recipients.rows[0].get("e-mailadres").error is None
+    assert recipients.rows[0].get("email address").data == ("two@three.com")
+    assert recipients.rows[0].get("email address").error is None
     assert recipients.has_errors
-    assert recipients.duplicate_recipient_column_headers == OrderedSet(["EMAILADRES", "e-mail_adres"])
+    assert recipients.duplicate_recipient_column_headers == OrderedSet(["EMAILADDRESS", "email_address"])
     assert recipients.has_errors
 
 
@@ -1274,7 +1270,7 @@ def test_multiple_letter_recipient_columns():
 def test_displayed_rows_when_some_rows_have_errors():
     recipients = RecipientCSV(
         """
-            e-mailadres, name
+            email address, name
             a@b.com,
             a@b.com,
             a@b.com, My Name

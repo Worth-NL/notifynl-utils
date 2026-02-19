@@ -78,7 +78,7 @@ def _index_rows(rows):
         ),
         (
             """
-                telefoonnummer,name,date
+                phonenumber,name,date
                 07700900460,test1,test1
                 07700900460,test1
                 +44 123,test1,test1
@@ -93,7 +93,7 @@ def _index_rows(rows):
         ),
         (
             """
-                telefoonnummer,name
+                phonenumber,name
                 07700900460,test1,test2
             """,
             "sms",
@@ -109,7 +109,7 @@ def _index_rows(rows):
         ),
         (
             """
-                ,,,,,,,,,telefoonnummer
+                ,,,,,,,,,phonenumber
                 ,,,,,,,,,07700900100
                 ,,,,,,,,,07700900100
             """,
@@ -220,7 +220,7 @@ def test_errors_on_qr_codes_with_too_much_data():
     [
         pytest.param("", "sms", marks=pytest.mark.xfail),
         pytest.param("name", "sms", marks=pytest.mark.xfail),
-        pytest.param("e-mailadres", "sms", marks=pytest.mark.xfail),
+        pytest.param("email address", "sms", marks=pytest.mark.xfail),
         pytest.param(
             "address_line_1",
             "letter",
@@ -241,12 +241,12 @@ def test_errors_on_qr_codes_with_too_much_data():
             "letter",
             marks=pytest.mark.xfail,
         ),
-        ("telefoonnummer", "sms"),
-        ("telefoonnummer,name", "sms"),
-        ("e-mailadres", "email"),
-        ("e-mailadres,name", "email"),
-        ("TELEFOONNUMMER", "sms"),
-        ("e-mailadres", "email"),
+        ("phonenumber", "sms"),
+        ("phonenumber,name", "sms"),
+        ("email address", "email"),
+        ("email address,name", "email"),
+        ("PHONENUMBER", "sms"),
+        ("email address", "email"),
         ("address_line_1, address_line_2, postcode", "letter"),
         ("address_line_1, address_line_2, address_line_6", "letter"),
         ("address_line_1, address_line_2, address_line_3", "letter"),
@@ -264,8 +264,8 @@ def test_recipient_column(content, file_contents, template_type):
 @pytest.mark.parametrize(
     "template_type, expected",
     (
-        ("email", ["e-mailadres"]),
-        ("sms", ["telefoonnummer"]),
+        ("email", ["email address"]),
+        ("sms", ["phone number"]),
         (
             "letter",
             [

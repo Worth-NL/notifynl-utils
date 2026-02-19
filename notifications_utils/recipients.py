@@ -27,8 +27,8 @@ from notifications_utils.template import BaseLetterTemplate, Template
 from .qr_code import QrCodeTooLong
 
 first_column_headings = {
-    "email": ["e-mailadres"],
-    "sms": ["telefoonnummer"],
+    "email": ["email address"],
+    "sms": ["phone number"],
     "letter": [line.replace("_", " ") for line in address_lines_1_to_5_and_postcode_keys + [address_line_6_key]],
 }
 
