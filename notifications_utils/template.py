@@ -517,6 +517,7 @@ class HTMLEmailTemplate(BaseEmailTemplate):
         brand_banner=False,
         brand_alt_text=None,
         rebrand=False,
+        asset_path="https://static.notifynl.nl/",
         **kwargs,
     ):
         super().__init__(template, values, **kwargs)
@@ -528,6 +529,7 @@ class HTMLEmailTemplate(BaseEmailTemplate):
         self.brand_banner = brand_banner
         self.brand_alt_text = brand_alt_text
         self.rebrand = rebrand
+        self.asset_path = asset_path
 
     @property
     def preheader(self):
@@ -562,6 +564,7 @@ class HTMLEmailTemplate(BaseEmailTemplate):
                 "brand_banner": self.brand_banner,
                 "brand_alt_text": self.brand_alt_text,
                 "rebrand": self.rebrand,
+                "asset_path": self.asset_path,
             }
         )
 
