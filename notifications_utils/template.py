@@ -587,6 +587,7 @@ class BaseLetterTemplate(SubjectMixin, Template):
         date=None,
         language="english",
         includes_first_page: bool = True,
+        extras: dict | None = None,
     ):
         self.contact_block = (contact_block or "").strip()
         super().__init__(
@@ -698,7 +699,7 @@ class BaseLetterTemplate(SubjectMixin, Template):
 
 
 class LetterPreviewTemplate(BaseLetterTemplate):
-    jinja_template = template_env.get_template("letter_pdf/preview.jinja2")
+    jinja_template = template_env.get_template("letter_pdf_nl/template.jinja2")
 
     @property
     def render_params(self):
@@ -714,6 +715,7 @@ class LetterPreviewTemplate(BaseLetterTemplate):
             "date": self._date,
             "language": self.language,
             "includes_first_page": self.includes_first_page,
+            "extras": self.extras if hasattr(self, "extras") else None,
         }
 
     def __str__(self):
@@ -721,7 +723,7 @@ class LetterPreviewTemplate(BaseLetterTemplate):
 
 
 class LetterPrintTemplate(LetterPreviewTemplate):
-    jinja_template = template_env.get_template("letter_pdf/print.jinja2")
+    jinja_template = template_env.get_template("letter_pdf_nl/template.jinja2")
 
     def __init__(
         self,
