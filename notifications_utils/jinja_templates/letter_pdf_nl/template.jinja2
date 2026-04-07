@@ -1,0 +1,102 @@
+{% extends "letter_pdf_nl/letter.html" %}
+
+{% block header %}
+  <style >
+    {% include "letter_pdf_nl/template.css" %}
+  </style>
+  <title>{{ subject }}</title>
+{% endblock%}
+
+{% block body %}
+  <div class="restricted-area">
+    <div class="content-area">
+      {% include "letter_pdf_nl/running-headers-footers.html"%}
+      <div class="header-area">
+        <div class="letter-header-container">
+          <!-- Logo -->
+          {% include "letter_pdf_nl/logo.html"%}
+
+          {%- if extras and extras.secundaireAfzender %}
+          <!-- Secondary Sender Address -->
+          <div class="sender-address">
+            {%- for line in extras.secundaireAfzender %}
+              <div class="{% if loop.first %}rand-info-kop{% else %}rand-info-subkop{%endif%}">
+                {{ line }}
+              </div>
+            {%- endfor %}
+          </div>
+          {%- endif %}
+
+          {%- if extras and extras.dienstCode %}
+            <div class="dienstcode align-with-envelope-window vertical-text dienstcode-font">
+              {{ extras.dienstCode }}
+            </div>
+          {%- endif %}
+
+          <div class="horizontal-position">
+            <!-- Recipient Address (PostNL Window Position) -->
+            <div class="recipient-address align-with-envelope-window">
+              {%- if extras and extras.retourAdres %}
+              <!-- Return Address (Small, for envelope window) -->
+              <div class="return-address rand-info-subkop">
+                Retouradres: {{ extras.retourAdres }}
+              </div>
+              {%- endif %}
+              {%- if extras and extras.classificatie %}
+              <!-- Classification -->
+              <div class="classification brieftype">
+                {{ extras.classificatie }}
+              </div>
+              {%- endif %}
+              <div class="recipient-addres-lines rand-info-invultekst">
+                {%- for line in address %}
+                  {{ line }}<br/>
+                {%- endfor %}
+              </div>
+            </div>
+
+            {% include "letter_pdf_nl/extras.html"%}
+
+            <div class="subject-info">
+              <div class="datum rand-info-kop">
+                Datum
+              </div>
+              <div class="rand-info-invultekst">{{ date }}</div>
+              <div class="subject">
+                <div class="rand-info-kop">Onderwerp</div>
+                <div class="rand-info-invultekst">{{ subject }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+
+    <div class="letter-content-area">
+      <div class="letter-container">
+        <!-- Letter Content -->
+        <div class="letter-content bodytekst">
+          {{ message }}
+        </div>
+
+        <!-- Letter signature -->
+        <div class="letter-signature bodytekst">
+          {%- if extras and extras.handtekening  %}
+          <div class="signature-image">
+            <img src="data:image/png;base64, {{ extras.handtekening }}" alt="handtekening" />
+          </div>
+          {%- endif %}
+          {%- if extras and extras.ondertekening  %}
+          <div class="signature-name">
+            {%- for line in extras.ondertekening %}
+            <div>{{ line }}</div>
+            {%- endfor %}
+          </div>
+          {%- endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,40 @@
+{%- if extras %}
+<div class="top-left-not-first-page">
+    <div class="position">
+        {%- if extras.headerVanafTweedePagina %}
+        <div class="gemeente-name rand-info-kop">{{ extras.headerVanafTweedePagina[0] }}</div>
+        {%- endif %}
+        {%- if extras.onsKenmerk %}
+        <div class="rand-info-kop">Ons kenmerk</div>
+        <div class="rand-info-invultekst">{{ extras.onsKenmerk }}</div>
+        {%- endif %}
+    </div>
+</div>
+<div class="footer-area">
+    {%- if extras.footerLinksEerstePagina %}
+    <div class="cols col-1">
+        {%- for line in extras.footerLinksEerstePagina %}
+        {%- if loop.first %}
+        <div class="rand-info-kop">{{ line }}</div>
+        {%- else %}
+        <div class="rand-info-subkop">{{ line }}</div>
+        {%- endif %}
+        {%- endfor %}
+    </div>
+    {%- endif %}
+    {%- if extras.footerMiddenEerstePagina %}
+    <div class="cols col-2">
+        {%- for line in extras.footerMiddenEerstePagina %}
+        <div class="rand-info-subkop">{{ line }}</div>
+        {%- endfor %}
+    </div>
+    {%- endif %}
+    {%- if extras.footerRechtsEerstePagina %}
+    <div class="cols col-3">
+        {%- for line in extras.footerRechtsEerstePagina %}
+        <div class="rand-info-subkop">{{ line }}</div>
+        {%- endfor %}
+    </div>
+    {%- endif %}
+</div>
+{%- endif %}

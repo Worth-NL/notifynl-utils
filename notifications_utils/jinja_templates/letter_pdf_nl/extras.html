@@ -1,0 +1,57 @@
+<!-- Extras -->
+{%- if extras %}
+<div class="rand-info align-with-envelope-window {{sender_organisation}}">
+  {%- if extras.uwBriefVan %}
+  <div>
+    <strong class="rand-info-kop">Uw brief van:</strong>
+    <div class="rand-info-invultekst">{{ extras.uwBriefVan }}</div>
+  </div>
+  {%- endif %} {%- if extras.uwKenmerk %}
+  <div>
+    <strong class="rand-info-kop">Uw kenmerk:</strong>
+    <div class="rand-info-invultekst">{{ extras.uwKenmerk }}</div>
+  </div>
+  {%- endif %} {%- if extras.onsKenmerk %}
+  <div>
+    <strong class="rand-info-kop">Ons kenmerk:</strong>
+    <div class="rand-info-invultekst">{{ extras.onsKenmerk }}</div>
+  </div>
+  {%- endif %} {%- if extras.contactpersoon %}
+  <div>
+    <strong class="rand-info-kop">Contactpersoon:</strong>
+    {%- for line in extras.contactpersoon %}
+    <div class="rand-info-invultekst">{{ line }}</div>
+    {%- endfor %}
+  </div>
+  {%- endif %} {%- if extras.dienstNaam %}
+  <div>
+    <strong class="rand-info-kop">Dienst:</strong>
+    {%- for line in extras.dienstNaam %}
+    <div class="rand-info-invultekst">{{ line }}</div>
+    {%- endfor %}
+  </div>
+  {%- endif %} {%- if extras.afdeling %}
+  <div>
+    <strong class="rand-info-kop">Afdeling:</strong>
+    {%- for line in extras.afdeling %}
+    <div class="rand-info-invultekst">{{ line }}</div>
+    {%- endfor %}
+  </div>
+  {%- endif %} {%- if extras.telefoonnummer %}
+  <div>
+    <strong class="rand-info-kop">Telefoonnummer:</strong>
+    <div class="rand-info-invultekst">{{ extras.telefoonnummer }}</div>
+  </div>
+  {%- endif %} {%- if extras.emailadres %}
+  <div>
+    <strong class="rand-info-kop">E-mailadres:</strong>
+    <div class="rand-info-invultekst">{{ extras.emailadres }}</div>
+  </div>
+  {%- endif %} {%- if extras.aantalBijlagen %}
+  <div>
+    <strong class="rand-info-kop">Aantal bijlagen:</strong>
+    <div class="rand-info-invultekst">{{ extras.aantalBijlagen }}</div>
+  </div>
+  {%- endif %}
+</div>
+{% endif %}
