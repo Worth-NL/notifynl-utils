@@ -699,7 +699,7 @@ class BaseLetterTemplate(SubjectMixin, Template):
 
 
 class LetterPreviewTemplate(BaseLetterTemplate):
-    jinja_template = template_env.get_template("letter_pdf_nl/template.jinja2")
+    jinja_template = template_env.get_template("letter_pdf_nl/preview.jinja2")
 
     @property
     def render_params(self):
@@ -723,7 +723,7 @@ class LetterPreviewTemplate(BaseLetterTemplate):
 
 
 class LetterPrintTemplate(LetterPreviewTemplate):
-    jinja_template = template_env.get_template("letter_pdf_nl/template.jinja2")
+    jinja_template = template_env.get_template("letter_pdf_nl/print.jinja2")
 
     def __init__(
         self,
