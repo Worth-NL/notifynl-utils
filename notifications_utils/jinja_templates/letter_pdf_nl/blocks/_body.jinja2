@@ -1,36 +1,29 @@
-{% extends "letter_pdf_nl/letter.html" %}
+</head>
 
-{% block header %}
-  <style >
-    {% include "letter_pdf_nl/template.css" %}
-  </style>
-  <title>{{ subject }}</title>
-{% endblock%}
-
-{% block body %}
+<body>
   <div class="restricted-area">
     <div class="content-area">
-      {% include "letter_pdf_nl/running-headers-footers.html"%}
+      {% include "letter_pdf_nl/blocks/partials/running-headers-footers.jinja2" %}
       <div class="header-area">
         <div class="letter-header-container">
           <!-- Logo -->
-          {% include "letter_pdf_nl/logo.html"%}
+          {% include "letter_pdf_nl/blocks/partials/logo.jinja2" %}
 
           {%- if extras and extras.secundaireAfzender %}
           <!-- Secondary Sender Address -->
           <div class="sender-address">
             {%- for line in extras.secundaireAfzender %}
-              <div class="{% if loop.first %}rand-info-kop{% else %}rand-info-subkop{%endif%}">
-                {{ line }}
-              </div>
+            <div class="{% if loop.first %}rand-info-kop{% else %}rand-info-subkop{%endif%}">
+              {{ line }}
+            </div>
             {%- endfor %}
           </div>
           {%- endif %}
 
           {%- if extras and extras.dienstCode %}
-            <div class="dienstcode align-with-envelope-window vertical-text dienstcode-font">
-              {{ extras.dienstCode }}
-            </div>
+          <div class="dienstcode align-with-envelope-window vertical-text dienstcode-font">
+            {{ extras.dienstCode }}
+          </div>
           {%- endif %}
 
           <div class="horizontal-position">
@@ -50,12 +43,12 @@
               {%- endif %}
               <div class="recipient-addres-lines rand-info-invultekst">
                 {%- for line in address %}
-                  {{ line }}<br/>
+                {{ line }}<br />
                 {%- endfor %}
               </div>
             </div>
 
-            {% include "letter_pdf_nl/extras.html"%}
+            {% include "letter_pdf_nl/blocks/partials/extras.jinja2" %}
 
             <div class="subject-info">
               <div class="datum rand-info-kop">
@@ -72,8 +65,6 @@
       </div>
     </div>
 
-
-
     <div class="letter-content-area">
       <div class="letter-container">
         <!-- Letter Content -->
@@ -83,12 +74,12 @@
 
         <!-- Letter signature -->
         <div class="letter-signature bodytekst">
-          {%- if extras and extras.handtekening  %}
+          {%- if extras and extras.handtekening %}
           <div class="signature-image">
             <img src="data:image/png;base64, {{ extras.handtekening }}" alt="handtekening" />
           </div>
           {%- endif %}
-          {%- if extras and extras.ondertekening  %}
+          {%- if extras and extras.ondertekening %}
           <div class="signature-name">
             {%- for line in extras.ondertekening %}
             <div>{{ line }}</div>
@@ -99,4 +90,4 @@
       </div>
     </div>
   </div>
-{% endblock %}
+</body>

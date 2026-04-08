@@ -1,0 +1,370 @@
+<style media="print">
+  @page {
+    size: A4 portrait;
+    margin-left: 5mm;
+    margin-right: 12mm;
+    padding: 0;
+
+    @top-left {
+      content: element(header-not-first)
+    }
+
+    @bottom-left {
+      content: element(footer)
+    }
+
+    @bottom-right {
+      content: counter(page) "/" counter(pages);
+      font-size: 6pt;
+      text-align: right;
+      vertical-align: top;
+      color: #888;
+    }
+  }
+
+  @page {
+    margin-top: 42mm;
+    margin-bottom: 15mm;
+  }
+
+  .top-left-not-first-page {
+    position: running(header-not-first);
+    left: 0;
+    top: 18mm;
+    width: 150mm;
+    line-height: 11pt;
+  }
+
+  .top-left-not-first-page .position {
+    position: absolute;
+    left: 32mm;
+    top: 0mm;
+
+  }
+
+  .top-left-not-first-page .gemeente-name {
+    margin-bottom: 11pt;
+  }
+
+  .footer-area {
+    position: running(footer);
+    width: 152mm;
+    height: 20mm;
+
+  }
+
+  .footer-area .cols {
+    width: 40mm;
+    text-align: left;
+    position: absolute;
+    bottom: 5mm;
+  }
+
+  .footer-area .col-1 {
+    left: 32mm;
+  }
+
+  .footer-area .col-2 {
+    left: 72mm;
+  }
+
+  .footer-area .col-3 {
+    left: 104mm;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  /* FONT STYLES  */
+  .rand-info-kop {
+    font-family: Arial, sans-serif;
+    font-size: 7pt;
+    font-weight: 600;
+  }
+
+  .rand-info-subkop {
+    font-family: Arial, sans-serif;
+    font-size: 7pt;
+    font-weight: 400;
+  }
+
+  .rand-info-invultekst {
+    font-family: Georgia, serif;
+    font-size: 8pt;
+    font-weight: 400;
+  }
+
+  .dienstcode-font {
+    font-family: Arial, sans-serif;
+    font-size: 7pt;
+    font-weight: 400;
+  }
+
+  .brieftype {
+    font-family: Arial, sans-serif;
+    font-size: 7pt;
+    font-weight: 600;
+    height: 11pt;
+  }
+
+  .bodytekst {
+    font-family: Georgia, serif;
+    font-weight: 400;
+    line-height: 13pt;
+    font-size: 9pt;
+  }
+
+  .bodytekst h1,
+  .bodytekst h2 {
+    font-family: Arial, sans-serif;
+    font-size: 7pt;
+    font-weight: 600;
+    line-height: 13pt;
+    margin-bottom: 0;
+  }
+
+  .bodytekst p {
+    margin-top: 0;
+  }
+
+  .bodytekst ul,
+  .bodytekst ol {
+    margin-top: 0;
+    padding-left: 3mm;
+  }
+
+
+  html {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+  }
+
+  body {
+    line-height: 11pt;
+    margin: 0;
+    padding: 0;
+    width: 200mm;
+    top: 0;
+    position: relative;
+  }
+
+  .restricted-area {
+    margin: 0;
+    max-width: 200mm;
+  }
+
+  .letter-header-container {
+    position: relative;
+    width: 197mm;
+    /*210 - 12 from the right side page margin */
+    padding: 0;
+    margin: 0;
+    height: 150mm;
+  }
+
+  .letter-header-container .horizontal-position {
+    position: relative;
+    /* letter-header-container - the 32mm margin to the left  */
+    left: 32mm;
+    width: 165mm;
+    height: 150mm;
+  }
+
+  .logo {
+    top: 5mm;
+    position: absolute;
+    left: 3mm;
+    width: 90mm;
+    height: 35mm;
+  }
+
+  .logo img,
+  .logo svg {
+    max-height: 100%;
+    height: 100%;
+    width: auto;
+  }
+
+  /* Sender address (small, top-left) */
+  .sender-address {
+    position: absolute;
+    top: 18mm;
+    right: 0;
+    width: 49.5mm;
+
+  }
+
+  /* Recipient address window (PostNL standard position) */
+  .align-with-envelope-window {
+    position: absolute;
+    top: 50mm;
+  }
+
+  .align-with-envelope-window.pingen {
+    /* Should be 50mm but Pingen really dislikes that and demands it at 60mm */
+    top: 60mm;
+  }
+
+  .dienstcode {
+    left: 21mm;
+    transform: rotate(90deg);
+    /* o 90deg */
+    transform-origin: left bottom;
+    white-space: nowrap;
+  }
+
+  /* because of the rotate the top position is not exactly 50mm or 60mm */
+  .dienstcode.align-with-envelope-window {
+    top: 47mm;
+  }
+
+  .dienstcode.align-with-envelope-window.pingen {
+    top: 57mm;
+  }
+
+  .return-address {
+    white-space: nowrap;
+    /* evita que el texto se corte en varias líneas */
+  }
+
+
+  .recipient-address {
+    position: absolute;
+    left: 0;
+    width: 81mm;
+    height: 200mm;
+    color: #000;
+  }
+
+
+  /* Date and reference */
+  .rand-info {
+    position: absolute;
+    right: 0;
+    width: 49.5mm;
+    text-align: left;
+  }
+
+  .rand-info strong {
+    display: block;
+
+  }
+
+  .mandatory-line {
+    background-color: aqua;
+  }
+
+  /* subject-info */
+  .subject-info {
+    position: absolute;
+    top: 90mm;
+    left: 0;
+    width: 90mm;
+    height: 50mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+
+  /* letter body */
+
+  .letter-container {
+    height: auto;
+    position: relative;
+    /* top: var(--rows-2); */
+    margin-left: 32.5mm;
+    width: 144mm;
+  }
+
+  /* Letter content */
+  .subject {
+    margin-bottom: 5mm;
+  }
+
+  .body-text {
+    margin-bottom: 5mm;
+    text-align: justify;
+  }
+
+  #content *:last-child {
+    margin-bottom: 0;
+  }
+
+  .page‑break,
+  /* Inherited from UK */
+  .page-break {
+    display: block;
+    page-break-after: always;
+    height: 0mm;
+  }
+
+  /* Signature */
+  .signature-image img {
+    width: auto;
+    height: 20mm;
+  }
+
+  /* QR code */
+  .qrcode,
+  .qrcode-placeholder {
+    display: block;
+    height: 32mm;
+    margin: 10pt auto 10pt auto;
+  }
+
+  .qrcode {
+    width: 32mm;
+  }
+
+  .qrcode svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .qrcode-placeholder-border {
+    width: 32mm;
+    height: 32mm;
+    border: 10mm dashed black;
+    margin: 0 auto 0 auto;
+    box-sizing: border-box;
+  }
+
+  .qrcode-placeholder-content {
+    text-align: center;
+    margin-top: 32mm;
+  }
+
+  .qrcode-placeholder-content-background {
+    padding: 10mm;
+    background: #fff;
+  }
+
+  .grid {
+    position: absolute;
+    width: 210mm;
+    height: 300mm;
+    outline: 1px solid red;
+    top: 0;
+    left: 0;
+    z-index: 1000;
+  }
+
+  .grid * {
+    position: absolute;
+    width: 1px;
+    height: 100%;
+    background-color: blue;
+    opacity: 0.5;
+  }
+
+  .grid .right-line {
+    right: 12mm;
+  }
+
+  .grid .left-line {
+    left: 32mm;
+  }
+</style>
