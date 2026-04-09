@@ -861,6 +861,7 @@ def test_too_many_pages_raises_for_unknown_page_count(template_class):
         template.too_many_pages  # noqa
 
 
+@pytest.mark.skip(reason="[NOTIFYNL] Welsh language not supported")
 @freeze_time("2023-10-31 00:00:01")
 def test_letter_template_shows_date_and_page_count_in_welsh_if_language_set_to_welsh():
     template = BeautifulSoup(
@@ -1937,6 +1938,7 @@ def test_letter_preview_uses_non_breaking_hyphens():
     )
 
 
+@pytest.mark.skip(reason="[NOTIFYNL] Template structure change")
 @freeze_time("2001-01-01 12:00:00.000000")
 def test_nested_lists_in_lettr_markup():
     template_content = str(
@@ -2241,6 +2243,7 @@ def test_letter_qr_codes_with_too_much_data(content, values, should_error):
         assert error is None
 
 
+@pytest.mark.skip(reason="[NOTIFYNL] mdi/barcode/qrcode parts not supported")
 @pytest.mark.parametrize(
     "extra_template_kwargs, should_have_notify_tag",
     (
@@ -2259,6 +2262,7 @@ def test_rendered_letter_template_for_print_can_toggle_notify_tag_and_always_hid
     assert "#mdi,\n  #barcode,\n  #qrcode {\n    display: none;\n  }" in str(template).strip()
 
 
+@pytest.mark.skip(reason="[NOTIFYNL] mdi/barcode/qrcode parts not supported")
 @pytest.mark.parametrize("includes_first_page", [True, False])
 def test_rendered_letter_template_for_preview_displays_barcodes_only_if_file_includes_first_page(includes_first_page):
     template = LetterPreviewTemplate(
