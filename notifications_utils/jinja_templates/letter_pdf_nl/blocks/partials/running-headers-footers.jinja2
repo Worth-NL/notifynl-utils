@@ -1,19 +1,19 @@
 {%- if extras %}
 <div class="top-left-not-first-page">
     <div class="position">
-        {%- if extras.headerVanafTweedePagina %}
-        <div class="gemeente-name rand-info-kop">{{ extras.headerVanafTweedePagina[0] }}</div>
+        {%- if extras.header_vanaf_tweede_pagina %}
+        <div class="gemeente-name rand-info-kop">{{ extras.header_vanaf_tweede_pagina[0] }}</div>
         {%- endif %}
-        {%- if extras.onsKenmerk %}
+        {%- if extras.ons_kenmerk %}
         <div class="rand-info-kop">Ons kenmerk</div>
-        <div class="rand-info-invultekst">{{ extras.onsKenmerk }}</div>
+        <div class="rand-info-invultekst">{{ extras.ons_kenmerk }}</div>
         {%- endif %}
     </div>
 </div>
 <div class="footer-area">
-    {%- if extras.footerLinksEerstePagina %}
+    {%- if extras.footer_links_eerste_pagina %}
     <div class="cols col-1">
-        {%- for line in extras.footerLinksEerstePagina %}
+        {%- for line in extras.footer_links_eerste_pagina %}
         {%- if loop.first %}
         <div class="rand-info-kop">{{ line }}</div>
         {%- else %}
@@ -22,16 +22,16 @@
         {%- endfor %}
     </div>
     {%- endif %}
-    {%- if extras.footerMiddenEerstePagina %}
+    {%- if extras.footer_midden_eerste_pagina %}
     <div class="cols col-2">
-        {%- for line in extras.footerMiddenEerstePagina %}
+        {%- for line in extras.footer_midden_eerste_pagina %}
         <div class="rand-info-subkop">{{ line }}</div>
         {%- endfor %}
     </div>
     {%- endif %}
-    {%- if extras.footerRechtsEerstePagina %}
+    {%- if extras.footer_rechts_eerste_pagina %}
     <div class="cols col-3">
-        {%- for line in extras.footerRechtsEerstePagina %}
+        {%- for line in extras.footer_rechts_eerste_pagina %}
         <div class="rand-info-subkop">{{ line }}</div>
         {%- endfor %}
     </div>

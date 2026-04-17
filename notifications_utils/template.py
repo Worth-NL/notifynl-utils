@@ -587,7 +587,6 @@ class BaseLetterTemplate(SubjectMixin, Template):
         date=None,
         language="english",
         includes_first_page: bool = True,
-        extras: dict | None = None,
     ):
         self.contact_block = (contact_block or "").strip()
         super().__init__(
@@ -697,6 +696,15 @@ class BaseLetterTemplate(SubjectMixin, Template):
             .then(restore_svg_dashes)
         )
 
+    @property
+    def _extras(self):
+        extras = self.values.get("extras", None)
+
+        if extras:
+            extras["sender_organisation"] = extras.get("sender_organisation", "custom")
+
+        return extras
+
 
 class LetterPreviewTemplate(BaseLetterTemplate):
     jinja_template = template_env.get_template("letter_pdf_nl/preview.jinja2")
@@ -715,7 +723,7 @@ class LetterPreviewTemplate(BaseLetterTemplate):
             "date": self._date,
             "language": self.language,
             "includes_first_page": self.includes_first_page,
-            "extras": self.extras if hasattr(self, "extras") else None,
+            "extras": self._extras,
         }
 
     def __str__(self):

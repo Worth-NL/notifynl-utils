@@ -1,20 +1,20 @@
 <!-- Extras -->
 {%- if extras %}
-<div class="rand-info align-with-envelope-window {{sender_organisation}}">
-  {%- if extras.uwBriefVan %}
+<div class="rand-info align-with-envelope-window {{ extras.sender_organisation }}">
+  {%- if extras.uw_brief_van %}
   <div>
     <strong class="rand-info-kop">Uw brief van:</strong>
-    <div class="rand-info-invultekst">{{ extras.uwBriefVan }}</div>
+    <div class="rand-info-invultekst">{{ extras.uw_brief_van }}</div>
   </div>
-  {%- endif %} {%- if extras.uwKenmerk %}
+  {%- endif %} {%- if extras.uw_kenmerk %}
   <div>
     <strong class="rand-info-kop">Uw kenmerk:</strong>
-    <div class="rand-info-invultekst">{{ extras.uwKenmerk }}</div>
+    <div class="rand-info-invultekst">{{ extras.uw_kenmerk }}</div>
   </div>
-  {%- endif %} {%- if extras.onsKenmerk %}
+  {%- endif %} {%- if extras.ons_kenmerk %}
   <div>
     <strong class="rand-info-kop">Ons kenmerk:</strong>
-    <div class="rand-info-invultekst">{{ extras.onsKenmerk }}</div>
+    <div class="rand-info-invultekst">{{ extras.ons_kenmerk }}</div>
   </div>
   {%- endif %} {%- if extras.contactpersoon %}
   <div>
@@ -23,10 +23,10 @@
     <div class="rand-info-invultekst">{{ line }}</div>
     {%- endfor %}
   </div>
-  {%- endif %} {%- if extras.dienstNaam %}
+  {%- endif %} {%- if extras.dienst_naam %}
   <div>
     <strong class="rand-info-kop">Dienst:</strong>
-    {%- for line in extras.dienstNaam %}
+    {%- for line in extras.dienst_naam %}
     <div class="rand-info-invultekst">{{ line }}</div>
     {%- endfor %}
   </div>
@@ -47,10 +47,10 @@
     <strong class="rand-info-kop">E-mailadres:</strong>
     <div class="rand-info-invultekst">{{ extras.emailadres }}</div>
   </div>
-  {%- endif %} {%- if extras.aantalBijlagen %}
+  {%- endif %} {%- if extras.aantal_bijlagen %}
   <div>
     <strong class="rand-info-kop">Aantal bijlagen:</strong>
-    <div class="rand-info-invultekst">{{ extras.aantalBijlagen }}</div>
+    <div class="rand-info-invultekst">{{ extras.aantal_bijlagen }}</div>
   </div>
   {%- endif %}
 </div>

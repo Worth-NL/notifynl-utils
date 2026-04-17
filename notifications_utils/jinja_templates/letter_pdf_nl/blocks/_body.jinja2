@@ -9,10 +9,10 @@
           <!-- Logo -->
           {% include "letter_pdf_nl/blocks/partials/logo.jinja2" %}
 
-          {%- if extras and extras.secundaireAfzender %}
+          {%- if extras and extras.secundaire_afzender %}
           <!-- Secondary Sender Address -->
           <div class="sender-address">
-            {%- for line in extras.secundaireAfzender %}
+            {%- for line in extras.secundaire_afzender %}
             <div class="{% if loop.first %}rand-info-kop{% else %}rand-info-subkop{%endif%}">
               {{ line }}
             </div>
@@ -20,19 +20,19 @@
           </div>
           {%- endif %}
 
-          {%- if extras and extras.dienstCode %}
+          {%- if extras and extras.dienst_code %}
           <div class="dienstcode align-with-envelope-window vertical-text dienstcode-font">
-            {{ extras.dienstCode }}
+            {{ extras.dienst_code }}
           </div>
           {%- endif %}
 
           <div class="horizontal-position">
             <!-- Recipient Address (PostNL Window Position) -->
             <div class="recipient-address align-with-envelope-window">
-              {%- if extras and extras.retourAdres %}
+              {%- if extras and extras.retour_adres %}
               <!-- Return Address (Small, for envelope window) -->
               <div class="return-address rand-info-subkop">
-                Retouradres: {{ extras.retourAdres }}
+                Retouradres: {{ extras.retour_adres }}
               </div>
               {%- endif %}
               {%- if extras and extras.classificatie %}
@@ -76,7 +76,11 @@
         <div class="letter-signature bodytekst">
           {%- if extras and extras.handtekening %}
           <div class="signature-image">
-            <img src="data:image/png;base64, {{ extras.handtekening }}" alt="handtekening" />
+            {%- set signature_data = extras.handtekening %}
+            {%- if not signature_data.startswith('data:image/') %}
+              {%- set signature_data = 'data:image/png;base64,' + signature_data %}
+            {%- endif %}
+            <img src="{{ signature_data }}" alt="handtekening" />
           </div>
           {%- endif %}
           {%- if extras and extras.ondertekening %}
