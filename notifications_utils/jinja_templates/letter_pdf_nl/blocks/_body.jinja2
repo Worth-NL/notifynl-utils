@@ -51,14 +51,14 @@
           {%- endif %}
 
           {%- if extras and extras.dienst_code %}
-          <div class="dienstcode align-with-envelope-window {{ extras.sender_organisation }} vertical-text dienstcode-font">
+          <div class="dienstcode align-with-envelope-window {{ extras.sender_organisation | default('') }} vertical-text dienstcode-font">
             {{ extras.dienst_code }}
           </div>
           {%- endif %}
 
           <div class="horizontal-position">
             {# Recipient Address (PostNL Window Position) #}
-            <div class="recipient-address align-with-envelope-window {{ extras.sender_organisation }}">
+            <div class="recipient-address align-with-envelope-window {{ extras.sender_organisation | default('') }}">
               {%- if extras and extras.retour_adres %}
               {# Return Address (Small, for envelope window) #}
               <div class="return-address rand-info-subkop">
