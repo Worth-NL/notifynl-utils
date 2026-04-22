@@ -49,11 +49,29 @@
     line-height: 11pt;
   }
 
+  @page :first {
+    @top-left {
+      content: none; /* hide on first page */
+    }
+  }
+
+  @page {
+    @top-left {
+      content: element(header-not-first); /* show on all other pages */
+    }
+  }
+
+
+  @page:not(:first) {
+    .top-left-not-first-page {
+      display: block; /* show only on pages after the first */
+    }
+  }
+
   .top-left-not-first-page .position {
     position: absolute;
     left: 32mm;
     top: 0mm;
-
   }
 
   .top-left-not-first-page .gemeente-name {
