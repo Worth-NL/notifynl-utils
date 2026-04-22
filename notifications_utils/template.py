@@ -696,9 +696,18 @@ class BaseLetterTemplate(SubjectMixin, Template):
             .then(restore_svg_dashes)
         )
 
+    @property
+    def _extras(self):
+        extras = self.values.get("extras", None)
+
+        if extras:
+            extras["sender_organisation"] = extras.get("sender_organisation", "custom")
+
+        return extras
+
 
 class LetterPreviewTemplate(BaseLetterTemplate):
-    jinja_template = template_env.get_template("letter_pdf/preview.jinja2")
+    jinja_template = template_env.get_template("letter_pdf_nl/preview.jinja2")
 
     @property
     def render_params(self):
@@ -714,6 +723,7 @@ class LetterPreviewTemplate(BaseLetterTemplate):
             "date": self._date,
             "language": self.language,
             "includes_first_page": self.includes_first_page,
+            "extras": self._extras,
         }
 
     def __str__(self):
@@ -721,7 +731,7 @@ class LetterPreviewTemplate(BaseLetterTemplate):
 
 
 class LetterPrintTemplate(LetterPreviewTemplate):
-    jinja_template = template_env.get_template("letter_pdf/print.jinja2")
+    jinja_template = template_env.get_template("letter_pdf_nl/print.jinja2")
 
     def __init__(
         self,

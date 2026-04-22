@@ -1,0 +1,142 @@
+</head>
+
+<body>
+  <div class="restricted-area">
+    <div class="content-area">
+      {# Footer placed early for first page #}
+      {%- if extras %}
+      <div class="footer-area">
+          {%- if extras.footer_links_eerste_pagina %}
+          <div class="cols col-1">
+              {%- for line in extras.footer_links_eerste_pagina %}
+              {%- if loop.first %}
+              <div class="rand-info-kop">{{ line }}</div>
+              {%- else %}
+              <div class="rand-info-subkop">{{ line }}</div>
+              {%- endif %}
+              {%- endfor %}
+          </div>
+          {%- endif %}
+          {%- if extras.footer_midden_eerste_pagina %}
+          <div class="cols col-2">
+              {%- for line in extras.footer_midden_eerste_pagina %}
+              <div class="rand-info-subkop">{{ line }}</div>
+              {%- endfor %}
+          </div>
+          {%- endif %}
+          {%- if extras.footer_rechts_eerste_pagina %}
+          <div class="cols col-3">
+              {%- for line in extras.footer_rechts_eerste_pagina %}
+              <div class="rand-info-subkop">{{ line }}</div>
+              {%- endfor %}
+          </div>
+          {%- endif %}
+      </div>
+      {%- endif %}
+
+      <div class="header-area">
+        <div class="letter-header-container">
+          {# Logo #}
+          {% include "letter_pdf_nl/blocks/partials/logo.jinja2" %}
+
+          {%- if extras and extras.secundaire_afzender %}
+          {# Secondary Sender Address #}
+          <div class="sender-address">
+            {%- for line in extras.secundaire_afzender %}
+            <div class="{% if loop.first %}rand-info-kop{% else %}rand-info-subkop{%endif%}">
+              {{ line }}
+            </div>
+            {%- endfor %}
+          </div>
+          {%- endif %}
+
+          {%- if extras and extras.dienst_code %}
+          <div class="dienstcode align-with-envelope-window {{ extras.sender_organisation | default('') }} vertical-text dienstcode-font">
+            {{ extras.dienst_code }}
+          </div>
+          {%- endif %}
+
+          <div class="horizontal-position">
+            {# Recipient Address (PostNL Window Position) #}
+            <div class="recipient-address align-with-envelope-window {{ extras.sender_organisation | default('') }}">
+              {%- if extras and extras.retour_adres %}
+              {# Return Address (Small, for envelope window) #}
+              <div class="return-address rand-info-subkop">
+                Retouradres: {{ extras.retour_adres }}
+              </div>
+              {%- endif %}
+              {%- if extras and extras.classificatie %}
+              {# Classification #}
+              <div class="classification brieftype">
+                {{ extras.classificatie }}
+              </div>
+              {%- endif %}
+              <div class="recipient-addres-lines rand-info-invultekst">
+                {%- for line in address %}
+                {{ line }}<br />
+                {%- endfor %}
+              </div>
+            </div>
+
+            {% include "letter_pdf_nl/blocks/partials/extras.jinja2" %}
+
+            <div class="subject-info">
+              <div class="datum rand-info-kop">
+                Datum
+              </div>
+              <div class="rand-info-invultekst">{{ date }}</div>
+              <div class="subject">
+                <div class="rand-info-kop">Onderwerp</div>
+                <div class="rand-info-invultekst">{{ subject }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="letter-content-area">
+      <div class="letter-container">
+        {# Letter Content #}
+        <div class="letter-content bodytekst">
+          {{ message }}
+        </div>
+
+        {# Letter signature #}
+        <div class="letter-signature bodytekst">
+          {%- if extras and extras.handtekening %}
+          <div class="signature-image">
+            {%- set signature_data = extras.handtekening %}
+            {%- if not signature_data.startswith('data:image/') %}
+              {%- set signature_data = 'data:image/png;base64,' + signature_data %}
+            {%- endif %}
+            <img src="{{ signature_data }}" alt="handtekening" />
+          </div>
+          {%- endif %}
+          {%- if extras and extras.ondertekening %}
+          <div class="signature-name">
+            {%- for line in extras.ondertekening %}
+            <div>{{ line }}</div>
+            {%- endfor %}
+          </div>
+          {%- endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Header placed at end for pages >=2 #}
+  {%- if extras %}
+  <div class="top-left-not-first-page">
+      <div class="position">
+          {%- if extras.header_vanaf_tweede_pagina %}
+          <div class="gemeente-name rand-info-kop">{{ extras.header_vanaf_tweede_pagina[0] }}</div>
+          {%- endif %}
+          {%- if extras.ons_kenmerk %}
+          <div class="rand-info-kop">Ons kenmerk</div>
+          <div class="rand-info-invultekst">{{ extras.ons_kenmerk }}</div>
+          {%- endif %}
+      </div>
+  </div>
+  {%- endif %}
+</body>

@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="nl">
+
+{% include 'letter_pdf_nl/blocks/_head.jinja2' %}
+
+{% include 'letter_pdf_nl/blocks/_css.jinja2' %}
+
+{% if includes_first_page %}
+{% include 'letter_pdf_nl/blocks/_css_print_only.jinja2' %}
+{% endif %}
+
+{% include 'letter_pdf_nl/blocks/_body.jinja2' %}
+
+</html>
