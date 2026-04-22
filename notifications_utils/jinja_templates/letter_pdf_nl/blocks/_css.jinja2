@@ -1,13 +1,11 @@
 <style media="print">
-  @page {
+  @page:first {
     size: A4 portrait;
     margin-left: 5mm;
     margin-right: 12mm;
+    margin-top: 42mm;
+    margin-bottom: 15mm;
     padding: 0;
-
-    @top-left {
-      content: element(header-not-first)
-    }
 
     @bottom-left {
       content: element(footer)
@@ -23,8 +21,24 @@
   }
 
   @page {
+    size: A4 portrait;
+    margin-left: 5mm;
+    margin-right: 12mm;
     margin-top: 42mm;
     margin-bottom: 15mm;
+    padding: 0;
+
+    @top-left {
+      content: element(header-not-first)
+    }
+
+    @bottom-right {
+      content: counter(page) "/" counter(pages);
+      font-size: 6pt;
+      text-align: right;
+      vertical-align: top;
+      color: #888;
+    }
   }
 
   .top-left-not-first-page {
@@ -80,37 +94,37 @@
   .rand-info-kop {
     font-family: Arial, sans-serif;
     font-size: 7pt;
-    font-weight: 600;
+    font-weight: bold;
   }
 
   .rand-info-subkop {
     font-family: Arial, sans-serif;
     font-size: 7pt;
-    font-weight: 400;
+    font-weight: normal;
   }
 
   .rand-info-invultekst {
     font-family: Georgia, serif;
     font-size: 8pt;
-    font-weight: 400;
+    font-weight: normal;
   }
 
   .dienstcode-font {
     font-family: Arial, sans-serif;
     font-size: 7pt;
-    font-weight: 400;
+    font-weight: normal;
   }
 
   .brieftype {
     font-family: Arial, sans-serif;
     font-size: 7pt;
-    font-weight: 600;
+    font-weight: bold;
     height: 11pt;
   }
 
   .bodytekst {
     font-family: Georgia, serif;
-    font-weight: 400;
+    font-weight: normal;
     line-height: 13pt;
     font-size: 9pt;
   }
@@ -119,7 +133,7 @@
   .bodytekst h2 {
     font-family: Arial, sans-serif;
     font-size: 7pt;
-    font-weight: 600;
+    font-weight: bold;
     line-height: 13pt;
     margin-bottom: 0;
   }
@@ -175,9 +189,9 @@
   .logo {
     top: 5mm;
     position: absolute;
-    left: 3mm;
+    left: 8mm;
     width: 90mm;
-    height: 35mm;
+    height: 25mm;
   }
 
   .logo img,
