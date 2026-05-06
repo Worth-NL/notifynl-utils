@@ -587,7 +587,7 @@ class BaseLetterTemplate(SubjectMixin, Template):
         )
         self.admin_base_url = admin_base_url
         self.logo_file_name = logo_file_name
-        self.date = date or datetime.now(UTC)
+        self.date = date
         self.language = language
         if language == "english":
             self.content = template["content"]
@@ -662,11 +662,15 @@ class BaseLetterTemplate(SubjectMixin, Template):
         )
 
     @property
-    def _date(self):
-        month = self.date.strftime("%B")
+    def date(self):
+        month = self._date.strftime("%B")
         if self.language == "welsh":
             month = ENGLISH_TO_WELSH_MONTHS[month]
-        return self.date.strftime(f"%-d {month} %Y")
+        return self._date.strftime(f"%-d {month} %Y")
+
+    @date.setter
+    def date(self, value):
+        self._date = value or datetime.now(UTC)
 
     @property
     def _personalised_content(self) -> Field:
@@ -704,7 +708,7 @@ class LetterPreviewTemplate(BaseLetterTemplate):
             "message": self._message,
             "address": self._address_block,
             "contact_block": self._contact_block,
-            "date": self._date,
+            "date": self.date,
             "language": self.language,
             "includes_first_page": self.includes_first_page,
         }
