@@ -578,7 +578,7 @@ class BaseLetterTemplate(SubjectMixin, Template):
         admin_base_url="http://localhost:6012",
         logo_file_name=None,
         redact_missing_personalisation=False,
-        date=None,
+        date: datetime | None = None,
         language="english",
         includes_first_page: bool = True,
     ):
@@ -663,14 +663,14 @@ class BaseLetterTemplate(SubjectMixin, Template):
         )
 
     @property
-    def date(self):
+    def date(self) -> str:
         month = self._date.strftime("%B")
         if self.language == "welsh":
             month = ENGLISH_TO_WELSH_MONTHS[month]
         return self._date.strftime(f"%-d {month} %Y")
 
     @date.setter
-    def date(self, value):
+    def date(self, value: datetime | None):
         self._date = utc_string_to_aware_gmt_datetime(value or datetime.now(UTC)).date()
 
     @property
