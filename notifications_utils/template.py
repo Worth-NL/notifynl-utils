@@ -48,6 +48,7 @@ from notifications_utils.qr_code import QrCodeTooLong
 from notifications_utils.recipient_validation.postal_address import PostalAddress, address_lines_1_to_7_keys
 from notifications_utils.sanitise_text import SanitiseSMS
 from notifications_utils.take import Take
+from notifications_utils.timezones import utc_string_to_aware_gmt_datetime
 
 template_env = Environment(
     loader=FileSystemLoader(
@@ -670,7 +671,7 @@ class BaseLetterTemplate(SubjectMixin, Template):
 
     @date.setter
     def date(self, value):
-        self._date = value or datetime.now(UTC)
+        self._date = utc_string_to_aware_gmt_datetime(value or datetime.now(UTC)).date()
 
     @property
     def _personalised_content(self) -> Field:

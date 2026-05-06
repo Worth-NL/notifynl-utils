@@ -738,7 +738,9 @@ def test_phone_templates_normalise_whitespace(template_class):
     [
         ({}, "12 December 2012"),
         ({"date": None}, "12 December 2012"),
-        ({"date": datetime.date.fromtimestamp(0)}, "1 January 1970"),
+        ({"date": datetime.datetime.fromtimestamp(0)}, "1 January 1970"),
+        ({"date": datetime.datetime(2026, 1, 6, 23, 1)}, "6 January 2026"),  # GMT
+        ({"date": datetime.datetime(2026, 5, 6, 23, 1)}, "7 May 2026"),  # British Summer Time
     ],
 )
 def test_letter_preview_renderer(
