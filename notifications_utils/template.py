@@ -48,6 +48,7 @@ from notifications_utils.qr_code import QrCodeTooLong
 from notifications_utils.recipient_validation.postal_address import PostalAddress, address_lines_1_to_7_keys
 from notifications_utils.sanitise_text import SanitiseSMS
 from notifications_utils.take import Take
+from notifications_utils.timezones import utc_string_to_aware_gmt_datetime
 
 template_env = Environment(
     loader=FileSystemLoader(
@@ -577,7 +578,7 @@ class BaseLetterTemplate(SubjectMixin, Template):
         admin_base_url="http://localhost:6012",
         logo_file_name=None,
         redact_missing_personalisation=False,
-        date=None,
+        date: datetime | None = None,
         language="english",
         includes_first_page: bool = True,
     ):
@@ -587,7 +588,7 @@ class BaseLetterTemplate(SubjectMixin, Template):
         )
         self.admin_base_url = admin_base_url
         self.logo_file_name = logo_file_name
-        self.date = date or datetime.now(UTC)
+        self.date = date
         self.language = language
         if language == "english":
             self.content = template["content"]
@@ -662,11 +663,15 @@ class BaseLetterTemplate(SubjectMixin, Template):
         )
 
     @property
-    def _date(self):
-        month = self.date.strftime("%B")
+    def date(self) -> str:
+        month = self._date.strftime("%B")
         if self.language == "welsh":
             month = ENGLISH_TO_WELSH_MONTHS[month]
-        return self.date.strftime(f"%-d {month} %Y")
+        return self._date.strftime(f"%-d {month} %Y")
+
+    @date.setter
+    def date(self, value: datetime | None):
+        self._date = utc_string_to_aware_gmt_datetime(value or datetime.now(UTC)).date()
 
     @property
     def _personalised_content(self) -> Field:
@@ -704,7 +709,7 @@ class LetterPreviewTemplate(BaseLetterTemplate):
             "message": self._message,
             "address": self._address_block,
             "contact_block": self._contact_block,
-            "date": self._date,
+            "date": self.date,
             "language": self.language,
             "includes_first_page": self.includes_first_page,
         }

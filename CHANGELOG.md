@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 115.0.2
+
+* Make date printed on templated letters aware of British Summer Time
+
 ## 115.0.1
 
 * Don’t set `require-hashes` to `true` when running `uv pip install` etc.
