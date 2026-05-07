@@ -1,4 +1,5 @@
 import re
+from contextlib import suppress
 from functools import lru_cache
 
 from notifications_utils.countries import UK, Country, CountryNotFoundError
@@ -41,9 +42,12 @@ class PostalAddress:
 
         self._bfpo_number, self._lines_without_bfpo = self._parse_and_extract_bfpo(self._lines)
 
+        count_of_trailing_uk_countries = len(list(self.trailing_uk_countries(self._lines_without_bfpo)))
+        lines_to_truncate = count_of_trailing_uk_countries or 1
+
         try:
             self.country = Country(self._lines_without_bfpo[-1])
-            self._lines_without_country_or_bfpo = self._lines_without_bfpo[:-1]
+            self._lines_without_country_or_bfpo = self._lines_without_bfpo[:-lines_to_truncate]
         except CountryNotFoundError:
             self._lines_without_country_or_bfpo = self._lines_without_bfpo
             self.country = country_UK
@@ -78,6 +82,15 @@ class PostalAddress:
         lines = [line for line in lines if not bfpo_matcher.match(line.lower())]
 
         return int(bfpo_number), lines
+
+    @staticmethod
+    def trailing_uk_countries(lines):
+        for line in reversed(lines):
+            with suppress(CountryNotFoundError):
+                if Country(line) == country_UK:
+                    yield line
+                else:
+                    return
 
     @classmethod
     def from_personalisation(cls, personalisation_dict, allow_international_letters=False):
@@ -223,7 +236,15 @@ class PostalAddress:
     def postcode(self):
         if self.international:
             return None
+        if not self._lines_without_country_or_bfpo:
+            return None
         return format_postcode_or_none(self._lines_without_country_or_bfpo[-1])
+
+    @property
+    def has_alphanumeric_character_in_address_lines_1_and_2(self):
+        if len(self.normalised_lines) < 2:
+            return False
+        return all(re.search(r"[a-zA-Z0-9]", line) for line in self.normalised_lines[:2])
 
     @property
     def valid(self):
@@ -234,6 +255,7 @@ class PostalAddress:
             and not self.has_invalid_characters
             and not (self.international and self.is_bfpo_address)
             and not self.has_no_fixed_abode_address
+            and self.has_alphanumeric_character_in_address_lines_1_and_2
         )
 
 

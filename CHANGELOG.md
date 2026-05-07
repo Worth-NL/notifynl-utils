@@ -1,5 +1,247 @@
 # CHANGELOG
 
+## 115.0.2
+
+* Make date printed on templated letters aware of British Summer Time
+
+## 115.0.1
+
+* Don’t set `require-hashes` to `true` when running `uv pip install` etc.
+* Generate hashes by default when running `uv pip compile`
+
+## 115.0.0
+
+* Adds shared `uv.toml` with `require-hashes = true`. Run `make freeze-requirements` to re-generate `requirements.txt` with hashes
+
+## 114.1.0
+
+* `RecipientCSV`: add some micro-optimizations for functions called from inner loops, use `__slots__` for `Cell`. The latter of these is technically a breaking change, but it's extremely unlikely consumers are mutating arbitrary attributes on `Cell` objects.
+
+## 114.0.0
+
+* **Breaking change**: Make `SerialisedModelCollection` a proper `Iterable`. To achieve this, model instance construction from "item" dicts has been moved to a new dedicated method `_get_model_instance_from_item`. Subclasses that previously customised model instance construction by overriding `__getitem__` will need to be updated to move this to `_get_model_instance_from_item` (and as a result may be able to remove their custom `__getitem__` implementation.
+
+## 113.6.2
+
+* Configure gunicorn with `control_socket_disable` as `True` by default
+
+## 113.6.1
+
+* Adds `requirements-parser` dependency to project (fix for issue introduced in 113.6.0)
+
+## 113.6.0
+
+* Adds `version_tools.show_outdated_requirements`. Consumers should add a make command like `python -c "from notifications_utils.version_tools import show_outdated_requirements; show_outdated_requirements()`
+
+## 113.5.1
+
+* `RecipientCSV`: Performance improvements for files with large numbers of columns
+
+## 113.5.0
+
+* RecipientCSV.get_rows: sleep every `get_rows_loop_interruptible_every` iterations. This should allow greenthread libraries to yield to another thread when processing large CSVs instead of blocking them.
+
+## 113.4.0
+
+* Add option to check_token and generate_token to take encrypt_secret. If it is there it will attempt to decrypt in check_token first, before falling back to verifying signing.  It will encrypt the token in generate_token if encrypt_secret is there.
+
+## 113.3.0
+
+* Add `semconv.set_service_instance_id`
+* Remove `celery.task.retry_number` attribute from `celery.task.duration` histogram metric
+
+## 113.2.0
+
+* Add `semconv.set_error_type`
+* Add `semconv.TASK_DURATION_HISTOGRAM_BUCKETS`
+* Add `semconv.HTTP_DURATION_HISTOGRAM_BUCKETS`
+
+## 113.1.0
+
+Add `testing.comparisons.AnyInstanceOf`
+
+## 113.0.0
+
+* Update Celery duration metric to follow OpenTelemetry semantic conventions
+
+## 112.0.0
+
+* Removes `serialised_model.SerialisedModelMeta` (should only affect the admin app)
+
+## 111.0.0
+
+* Remove `@statsd` decorator
+
+## 110.2.0
+
+* Adds `InsenstiveSet.index()`, `InsenstiveSet.union()`, `InsenstiveSet.issubset()`, etc
+* `Field.placeholders` and `Template.placeholders` are now instances of `InsenstiveSet`
+
+## 110.1.0
+
+* Make StatsD client optional for Celery apps
+* Instrument Celery tasks using OpenTelemetry API
+
+## 110.0.1
+
+* Use `inspect.get_annotations` instead of the `__annotations__` property (no functional changes)
+
+## 110.0.0
+
+* `requirements_for_test_common.in` no longer has pinned versions. Running `make freeze-requirements` in apps may cause versions of these dependencies to be bumped
+* Bumps `ruff` to version `0.15.2` which may introduce new linter errors
+
+## 109.0.0
+
+* Update `PostalAddress` validation to ensure that both the address line 1 (recipient) and the address line 2 (1st line of the address) contain at least one alphanumeric character. This prevents addresses consisting only of symbols from being marked as valid, which would otherwise be rejected by the DVLA.
+
+## 108.5.0
+
+* **Celery:**
+1. Add optional support for `MessageGroupId` (fair queue). When the notifications-api sets `ENABLE_SQS_MESSAGE_GROUP_IDS` to `True`, `send_task` persists `MessageGroupId` and stores it in message headers as `notify_message_group_id` so the running task can read it via the new `NotifyTask.message_group_id` property (e.g. for retries). When the flag is `False`, `MessageGroupId` is stripped so behaviour is unchange. A warning is logged when `MessageGroupId` is passed explicitly but empty.
+
+## 108.4.0
+
+* Added `file_types` module
+
+## 108.3.0
+
+* Added `formatters.format_file_size`
+
+## 108.2.0
+
+Use `extract_reraise_chained_exception` to wrap functions in the `s3` module, re-raising `EventletTimeout` if encountered.
+
+## 108.1.0
+
+Add `extract_reraise_chained_exception` in the new `exception_handling` module.
+
+## 108.0.0
+
+Reintroduce `NotifyTask` changes from version 106, this time with (correct) accomodation for potentially already being in an app context when an async task is entered. Again, there are no explicit breaking changes, but it's best to check everything like e.g. request id propagation & db connection handling is working properly for celery tasks when upgrading past this.
+
+## 107.0.2
+
+Hide logo images from assistive tech. They already have alt='', which should do this, but the
+Outlook app on Android and iOS phones doesn't recognise it so we also add aria-hidden.
+
+## 107.0.1
+
+* Allow letters to be addressed to ‘Palestine’ specifically
+
+## 107.0.0
+
+* Revert `NotifyCelery`/`NotifyTask` to version as-of 105.0.0 until we figure out the right way to address our celery workers' context issues. In the very unlikely event your code started referencing a statically-defined `NotifyTask`, you'll have undo that for now.
+
+## 106.1.1
+
+* Fix `NotifyTask` to force-set `g.request_id` when entering a flask app context
+
+## 106.1.0
+
+* Let consumers of `Template` rely on `Template._template` being defined when setting `Template.values`
+
+## 106.0.1
+
+* Bugfix - reintroduce accidentally omitted change for `NotifyTask`
+
+## 106.0.0
+
+* Don't generate `NotifyTask` dynamically, instead having `NotifyTask` statically defined in the `notifications_utils.celery` module. This doesn't require any *specific* any code changes, but it does have the side effect that synchronous calls to celery tasks will now *actually* be using `NotifyTask`, and any tasks delcared with `bind=True` will be receiving a `NotifyTask` instance as their `self` argument. Previously this would have been a vanilla celery `Task` instance for synchronous calls, so this might be a surprising difference.
+
+## 105.0.0
+
+* Remove TemplateChange class - it is moved to notifications-admin now
+* Remove compare_to method from Template class - the only usage of this was in
+  notifications-admin and we don't use that method anymore. Instead admin uses TemplateChange class directly
+
+## 104.4.0
+
+* `RedisClient`: add `always_raise` mechanism for specific exception raising, set to `always_raise` `EventletTimeout` by default.
+
+## 104.3.3
+
+* Added bank holidays for 2027 to the `bank-holidays.json` file
+
+## 104.3.2
+
+* add `exc_info` to warning logs arising from retries of `NotifyTask`
+
+## 104.3.1
+
+* Fix handling of empty UK addresses
+
+## 104.3.0
+
+* Normalise some additional countries in postal addresses
+
+## 104.2.1
+
+* Bump minimum version of `requests` to 2.32.5
+
+## 104.2.0
+
+* Add support for, earlier, "soft timeouts" to `EventletTimeoutMiddleware`
+
+## 104.1.0
+
+* Add `key_type` as a parameter to `daily_limit_cache_key` to facilitate implementation of daily rate limits
+  for `test` API keys. `key_type` has a default of `None` in order to maintain backwards compatibility.
+
+## 104.0.1
+
+* Improve handling of CSV files with thousands of empty columns
+
+## 104.0.0
+
+* Drop support for Python < 3.13 (don’t upgrade to this version until your app is running on 3.13)
+
+## 103.1.0
+
+* Reduce precision of request_time printed in human-readable message of flask `app.request` logs. Precision in structured field is retained.
+
+## 103.0.0
+
+* NOTABLE CHANGE: the `user_id` structured log annotation (sourced from the flask `g["user_id"]` global) is now annotated as `current_user_id` to make way for more general use of `user_id` without collisions. Update any dashboards/alerts/saved queries that expect this field.
+* Changed several logging sites to include more structured parameters via the `extra=` argument and use more systematic parameter names for existing ones.
+
+## 102.1.1
+
+* Removed HTML and CSS from the email template that fixed the width of the main content column for
+  older versions of Outlook
+
+## 102.1.0
+
+* Added a new optional argument `custom_topics` to `NotifySupportTicket`. This takes IDs and values for the topic fields on the Notify support form
+  so that the topic fields can be populated when creating a Zendesk ticket.
+
+## 102.0.1
+
+* Remove old GOV.UK branding from email template
+* Let `notifications_utils.serialised_model` handle complex type annotations in Python 3.13
+
+## 102.0.0
+
+* Remove `pytz` dependency. Downstream projects should explicitly specify `pytz` in their requirements file or instead take steps to remove it.
+
+## 101.3.1
+
+* Fix rendering of parentheses in some HTML email clients
+
+## 101.3.0
+
+* Upgrade Python version to 3.13
+* Adjust get_remote_version() to compensate for changes in locals() in Python 3.13
+
+## 101.2.1
+
+* Remove `clients.redis.rate_limit_cache_key` (no longer used)
+
+## 101.2.0
+
+* Override celery's _get_backend() method to instantly return a DisabledBackend object if result_backend is None.
+  This is to improve performance by preventing unnecessary calls to celery's backend.
+
 ## 101.1.1
 
 * Bump min version of `govuk-bank-holidays` to 0.17.0

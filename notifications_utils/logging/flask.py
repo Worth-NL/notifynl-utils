@@ -54,6 +54,8 @@ def _common_request_extra_log_context():
     # Parse X-Forwarded-For header to get the full IP chain
     # This provides more detail than ProxyFix by not trusting any single IP
     # and preserving the full chain for analysis
+    # If other headers are required (or this one no is longer needed) update the docs:
+    # https://github.com/alphagov/notifications-manuals/wiki/Request-headers-used
     x_forwarded_for = request.headers.get("X-Forwarded-For")
     if x_forwarded_for:
         # Split by comma, strip whitespace, and reverse to get chain from server to client
@@ -116,7 +118,7 @@ def _log_response_closed(
     }
     logger.getChild("request").log(
         log_level,
-        "Streaming response for %(method)s %(url)s %(status)s closed after %(request_time)ss",
+        "Streaming response for %(method)s %(url)s %(status)s closed after %(request_time).4gs",
         context,
         extra=context,
     )
@@ -187,7 +189,7 @@ def init_app(app, statsd_client=None, extra_filters: Sequence[logging.Filter] = 
 
         current_app.logger.getChild("request").log(
             log_level,
-            "%(method)s %(url)s %(status)s took %(request_time)ss",
+            "%(method)s %(url)s %(status)s took %(request_time).4gs",
             context,
             extra=context,
         )
@@ -208,7 +210,7 @@ def init_app(app, statsd_client=None, extra_filters: Sequence[logging.Filter] = 
                         "request_id": RequestIdFilter().request_id,
                         "service_id": ServiceIdFilter().service_id,
                         "span_id": SpanIdFilter().span_id,
-                        "user_id": UserIdFilter().user_id,
+                        "current_user_id": UserIdFilter().user_id,
                         **_common_request_extra_log_context(),
                     },
                 )
@@ -355,5 +357,5 @@ class UserIdFilter(logging.Filter):
             return None
 
     def filter(self, record):
-        record.user_id = self.user_id or getattr(record, "user_id", None)
+        record.current_user_id = self.user_id or getattr(record, "current_user_id", None)
         return record

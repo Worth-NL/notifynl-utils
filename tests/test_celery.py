@@ -4,10 +4,12 @@ import uuid
 
 import pytest
 from celery import Task
+from celery.backends.base import DisabledBackend
+from celery.backends.redis import RedisBackend
 from flask import g
 from freezegun import freeze_time
 
-from notifications_utils.celery import NotifyCelery
+from notifications_utils.celery import NotifyCelery, duration_histogram
 
 
 @pytest.fixture
@@ -58,8 +60,9 @@ def request_id_task(celery_task):
     celery_task.pop_request()
 
 
-def test_success_should_log_and_call_statsd(celery_app, async_task, caplog):
+def test_success_should_log_and_record_timing(celery_app, async_task, caplog, mocker):
     statsd_mock = celery_app.statsd_client.timing
+    record_mock = mocker.patch.object(duration_histogram, "record")
 
     with freeze_time() as frozen, caplog.at_level(logging.INFO):
         async_task()
@@ -68,12 +71,21 @@ def test_success_should_log_and_call_statsd(celery_app, async_task, caplog):
         async_task.on_success(retval=None, task_id=1234, args=[], kwargs={})
 
     statsd_mock.assert_called_once_with(f"celery.test-queue.{async_task.name}.success", 5.0)
+    record_mock.assert_called_once_with(
+        5.0,
+        {
+            "celery.task.name": async_task.name,
+            "celery.task.status": "success",
+            "sqs.queue.name": "test-queue",
+        },
+    )
     assert f"Celery task {async_task.name} (queue: test-queue) started" in caplog.messages
     assert f"Celery task {async_task.name} (queue: test-queue) took 5.0000" in caplog.messages
 
 
-def test_success_no_early_log(celery_app, async_task_early_debug, caplog):
+def test_success_no_early_log(celery_app, async_task_early_debug, caplog, mocker):
     statsd_mock = celery_app.statsd_client.timing
+    record_mock = mocker.patch.object(duration_histogram, "record")
 
     with freeze_time() as frozen, caplog.at_level(logging.INFO):
         async_task_early_debug()
@@ -82,12 +94,21 @@ def test_success_no_early_log(celery_app, async_task_early_debug, caplog):
         async_task_early_debug.on_success(retval=None, task_id=1234, args=[], kwargs={})
 
     statsd_mock.assert_called_once_with(f"celery.test-queue.{async_task_early_debug.name}.success", 5.0)
+    record_mock.assert_called_once_with(
+        5.0,
+        {
+            "celery.task.name": async_task_early_debug.name,
+            "celery.task.status": "success",
+            "sqs.queue.name": "test-queue",
+        },
+    )
     assert f"Celery task {async_task_early_debug.name} (queue: test-queue) started" not in caplog.messages
     assert f"Celery task {async_task_early_debug.name} (queue: test-queue) took 5.0000" in caplog.messages
 
 
-def test_success_queue_when_applied_synchronously(celery_app, celery_task, caplog):
+def test_success_queue_when_applied_synchronously(celery_app, celery_task, caplog, mocker):
     statsd_mock = celery_app.statsd_client.timing
+    record_mock = mocker.patch.object(duration_histogram, "record")
 
     with freeze_time() as frozen, caplog.at_level(logging.INFO):
         celery_task()
@@ -96,12 +117,21 @@ def test_success_queue_when_applied_synchronously(celery_app, celery_task, caplo
         celery_task.on_success(retval=None, task_id=1234, args=[], kwargs={})
 
     statsd_mock.assert_called_once_with(f"celery.none.{celery_task.name}.success", 5.0)
+    record_mock.assert_called_once_with(
+        5.0,
+        {
+            "celery.task.name": celery_task.name,
+            "celery.task.status": "success",
+            "sqs.queue.name": "none",
+        },
+    )
     assert f"Celery task {celery_task.name} (queue: none) started" not in caplog.messages
     assert f"Celery task {celery_task.name} (queue: none) took 5.0000" in caplog.messages
 
 
-def test_retry_should_log_and_call_statsd(celery_app, async_task, caplog):
+def test_retry_should_log_and_call_statsd(celery_app, async_task, caplog, mocker):
     statsd_mock = celery_app.statsd_client.timing
+    record_mock = mocker.patch.object(duration_histogram, "record")
 
     with freeze_time() as frozen, caplog.at_level(logging.WARNING):
         async_task()
@@ -110,12 +140,21 @@ def test_retry_should_log_and_call_statsd(celery_app, async_task, caplog):
         async_task.on_retry(exc=Exception, task_id="1234", args=[], kwargs={}, einfo=None)
 
     statsd_mock.assert_called_once_with(f"celery.test-queue.{async_task.name}.retry", 5.0)
+    record_mock.assert_called_once_with(
+        5.0,
+        {
+            "celery.task.name": async_task.name,
+            "celery.task.status": "retry",
+            "sqs.queue.name": "test-queue",
+        },
+    )
     assert f"Celery task {async_task.name} (queue: test-queue) started" not in caplog.messages  # log level too low
     assert f"Celery task {async_task.name} (queue: test-queue) failed for retry after 5.0000" in caplog.messages
 
 
-def test_retry_queue_when_applied_synchronously(celery_app, celery_task, caplog):
+def test_retry_queue_when_applied_synchronously(celery_app, celery_task, caplog, mocker):
     statsd_mock = celery_app.statsd_client.timing
+    record_mock = mocker.patch.object(duration_histogram, "record")
 
     with freeze_time() as frozen, caplog.at_level(logging.WARNING):
         celery_task()
@@ -124,12 +163,21 @@ def test_retry_queue_when_applied_synchronously(celery_app, celery_task, caplog)
         celery_task.on_retry(exc=Exception, task_id="1234", args=[], kwargs={}, einfo=None)
 
     statsd_mock.assert_called_once_with(f"celery.none.{celery_task.name}.retry", 5.0)
+    record_mock.assert_called_once_with(
+        5.0,
+        {
+            "celery.task.name": celery_task.name,
+            "celery.task.status": "retry",
+            "sqs.queue.name": "none",
+        },
+    )
     assert f"Celery task {celery_task.name} (queue: none) started" not in caplog.messages  # log level too low
     assert f"Celery task {celery_task.name} (queue: none) failed for retry after 5.0000" in caplog.messages
 
 
-def test_failure_should_log_and_call_statsd(celery_app, async_task, caplog):
+def test_failure_should_log_and_call_statsd(celery_app, async_task, caplog, mocker):
     statsd_mock = celery_app.statsd_client.incr
+    record_mock = mocker.patch.object(duration_histogram, "record")
 
     with freeze_time() as frozen, caplog.at_level(logging.INFO):
         async_task()
@@ -138,13 +186,22 @@ def test_failure_should_log_and_call_statsd(celery_app, async_task, caplog):
         async_task.on_failure(exc=Exception, task_id=1234, args=[], kwargs={}, einfo=None)
 
     statsd_mock.assert_called_once_with(f"celery.test-queue.{async_task.name}.failure")
+    record_mock.assert_called_once_with(
+        5.0,
+        {
+            "celery.task.name": async_task.name,
+            "celery.task.status": "failure",
+            "sqs.queue.name": "test-queue",
+        },
+    )
 
     assert f"Celery task {async_task.name} (queue: test-queue) started" in caplog.messages
     assert f"Celery task {async_task.name} (queue: test-queue) failed after 5.0000" in caplog.messages
 
 
-def test_failure_queue_when_applied_synchronously(celery_app, celery_task, caplog):
+def test_failure_queue_when_applied_synchronously(celery_app, celery_task, caplog, mocker):
     statsd_mock = celery_app.statsd_client.incr
+    record_mock = mocker.patch.object(duration_histogram, "record")
 
     with freeze_time() as frozen, caplog.at_level(logging.ERROR):
         celery_task()
@@ -152,26 +209,34 @@ def test_failure_queue_when_applied_synchronously(celery_app, celery_task, caplo
         celery_task.on_failure(exc=Exception, task_id=1234, args=[], kwargs={}, einfo=None)
 
     statsd_mock.assert_called_once_with(f"celery.none.{celery_task.name}.failure")
+    record_mock.assert_called_once_with(
+        5.0,
+        {
+            "celery.task.name": celery_task.name,
+            "celery.task.status": "failure",
+            "sqs.queue.name": "none",
+        },
+    )
 
     assert f"Celery task {celery_task.name} (queue: none) started" not in caplog.messages  # log level too low
     assert f"Celery task {celery_task.name} (queue: none) failed after 5.0000" in caplog.messages
 
 
 def test_call_exports_request_id_from_headers(mocker, request_id_task):
-    g = mocker.patch("notifications_utils.celery.g")
+    g = mocker.patch("notifications_utils.celery.g", spec=())
     request_id_task()
     assert g.request_id == "1234"
 
 
 def test_copes_if_request_id_not_in_headers(mocker, celery_task):
-    g = mocker.patch("notifications_utils.celery.g")
+    g = mocker.patch("notifications_utils.celery.g", spec=())
     celery_task()
     assert g.request_id is None
 
 
 def test_injects_celery_task_id_if_no_request_id(mocker, celery_task):
     mocker.patch("celery.app.task.uuid", return_value="my-random-uuid")
-    g = mocker.patch("notifications_utils.celery.g")
+    g = mocker.patch("notifications_utils.celery.g", spec=())
     celery_task.apply()
     assert g.request_id == "my-random-uuid"
 
@@ -256,3 +321,111 @@ def test_method_signatures(celery_app, async_task, method, _value):
     if method == "run":
         return
     assert inspect.signature(getattr(async_task.__class__, method)) == inspect.signature(getattr(Task, method))
+
+
+def test__get_backend_returns_DisabledBackground_object_when_result_backend_is_set_to_None(notify_celery, mocker):
+    # result_backend is None by default
+    assert isinstance(notify_celery._get_backend(), DisabledBackend)
+
+
+def test_get_backend_does_not_return_DisabledBackground_object_when_result_backend_has_a_value(notify_celery, mocker):
+    notify_celery.conf.update({"result_backend": "redis"})
+    assert isinstance(notify_celery._get_backend(), RedisBackend)
+
+
+def test_backends_by_url_is_not_called_when_result_backend_is_None(notify_celery, mocker):
+    # Celery.app.backends.by_url is the function notify_celery.get_backend calls to get/construct a backend
+    # This test validates that it is not called when no value has been provided for result_backend
+    mock_backend_cls = mocker.MagicMock()
+    mock_by_url = mocker.patch("celery.app.backends.by_url", return_value=(mock_backend_cls, "redis"))
+    notify_celery._get_backend()
+    mock_by_url.assert_not_called()
+
+
+def test_celery_backends_by_url_is_called_when_result_backend_has_a_value(notify_celery, mocker):
+    # Celery.app.backends.by_url is the function notify_celery.get_backend calls to get/construct a backend
+    # This test validates that it is called when a value has been provided for result_backend
+    notify_celery.conf.update({"result_backend": "redis"})
+    mock_backend_cls = mocker.MagicMock()
+    mock_by_url = mocker.patch("celery.app.backends.by_url", return_value=(mock_backend_cls, "redis"))
+    notify_celery._get_backend()
+    mock_by_url.assert_called()
+
+
+def test_message_group_id_returns_header_when_present(celery_task):
+    celery_task.push_request(notify_message_group_id="my-group-123", id=1234)
+    try:
+        assert celery_task.message_group_id == "my-group-123"
+    finally:
+        celery_task.pop_request()
+
+
+def test_message_group_id_returns_none_when_header_absent(celery_task):
+    celery_task.push_request(id=1234)
+    try:
+        assert celery_task.message_group_id is None
+    finally:
+        celery_task.pop_request()
+
+
+def test_send_task_pops_message_group_id_when_sqs_message_group_ids_disabled(
+    notify_celery,
+    celery_app,
+    mocker,
+):
+    celery_app.config["ENABLE_SQS_MESSAGE_GROUP_IDS"] = False
+    super_send = mocker.patch("celery.Celery.send_task")
+
+    notify_celery.send_task("some-task", MessageGroupId="some-group")
+
+    call_kwargs = super_send.call_args[1]
+    assert "MessageGroupId" not in call_kwargs
+    assert call_kwargs["headers"].get("notify_message_group_id") is None
+
+
+def test_send_task_propagates_message_group_id_in_headers_when_sqs_message_group_ids_enabled(
+    notify_celery,
+    celery_app,
+    mocker,
+):
+    celery_app.config["ENABLE_SQS_MESSAGE_GROUP_IDS"] = True
+    super_send = mocker.patch("celery.Celery.send_task")
+
+    notify_celery.send_task("some-task", MessageGroupId="some-group")
+
+    call_kwargs = super_send.call_args[1]
+    assert call_kwargs["headers"]["notify_message_group_id"] == "some-group"
+
+
+def test_send_task_strips_falsy_message_group_id_when_sqs_message_group_ids_enabled(
+    notify_celery,
+    celery_app,
+    mocker,
+):
+    celery_app.config["ENABLE_SQS_MESSAGE_GROUP_IDS"] = True
+    super_send = mocker.patch("celery.Celery.send_task")
+
+    notify_celery.send_task("some-task", MessageGroupId="")
+
+    call_kwargs = super_send.call_args[1]
+    assert "MessageGroupId" not in call_kwargs
+    assert call_kwargs["headers"]["notify_message_group_id"] == ""
+
+
+def test_send_task_warns_when_message_group_id_explicitly_empty(
+    notify_celery,
+    celery_app,
+    mocker,
+    caplog,
+):
+    super_send = mocker.patch("celery.Celery.send_task")
+    celery_app.config["ENABLE_SQS_MESSAGE_GROUP_IDS"] = True
+
+    with caplog.at_level(logging.WARNING):
+        notify_celery.send_task("some-task", MessageGroupId="")
+
+    assert "MessageGroupId argument specified explicitly with empty value" in caplog.text
+    assert "some-task" in caplog.text
+    call_kwargs = super_send.call_args[1]
+    assert "MessageGroupId" not in call_kwargs
+    super_send.assert_called_once()

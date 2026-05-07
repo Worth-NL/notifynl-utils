@@ -1,11 +1,12 @@
 beautifulsoup4
 pytest
+pytest-env
 pytest-mock
 pytest-xdist
 pytest-testmon
 requests-mock
 freezegun
 
-ruff==0.11.4  # Also update `.pre-commit-config.yaml` if this changes
+ruff==0.15.2  # Also update `.pre-commit-config.yaml` if this changes
 
 urllib3>=2.6.0
