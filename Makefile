@@ -1,5 +1,6 @@
 .DEFAULT_GOAL := help
 SHELL := /bin/bash
+EXCLUDE_REQUIREMENTS_NEWER_THAN_DAYS ?= 30
 
 .PHONY: help
 help:
@@ -7,20 +8,31 @@ help:
 
 .PHONY: freeze-requirements
 freeze-requirements: ## Pin all test requirements including sub dependencies into requirements_for_test.txt
-	uv pip compile requirements_for_test.in pyproject.toml --output-file requirements_for_test.txt
+	uv pip compile requirements_for_test.in pyproject.toml --output-file requirements_for_test.txt $(EXTRA_UV_PIP_COMPILE_FLAGS)
+
+.PHONY: refreeze-requirements
+refreeze-requirements: ## Upgrade unpinned requirements
+	EXTRA_UV_PIP_COMPILE_FLAGS="--upgrade --exclude-newer $(EXCLUDE_REQUIREMENTS_NEWER_THAN_DAYS)d" make freeze-requirements
 
 .PHONY: bootstrap
 bootstrap: ## Build project
-	pip install -r requirements_for_test.txt
-	pip install -e .
+	uv pip install -r requirements_for_test.txt
+	uv pip install -e .
+
+.PHONY: bootstrap-with-docker
+bootstrap-with-docker: ## Build project with Docker
+	docker build -f docker/Dockerfile .
 
 .PHONY: test
-test: ## Run tests
+test: lint ## Run tests
 	redis-server --daemonize yes --port 6999 || redis --daemonize yes --port 6999 || echo "using local version of redis"
-	ruff check .
-	ruff format --check .
 	pytest -n auto
 	python -m build
+
+.PHONY: lint
+lint: ## Run static analysis
+	ruff check .
+	ruff format --check .
 
 .PHONY: watch-tests
 watch-tests: ## Automatically rerun tests

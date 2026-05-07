@@ -4,7 +4,11 @@ import botocore
 from boto3 import client, resource
 from flask import current_app
 
+from notifications_utils.eventlet import EventletTimeout
+from notifications_utils.exception_handling import extract_reraise_chained_exception
 
+
+@extract_reraise_chained_exception(EventletTimeout)
 def s3upload(
     filedata,
     region,
@@ -30,7 +34,11 @@ def s3upload(
     try:
         key.put(**put_args)
     except botocore.exceptions.ClientError as e:
-        current_app.logger.error("Unable to upload file to S3 bucket %s", bucket_name)
+        current_app.logger.error(
+            "Unable to upload file to S3 bucket %s",
+            bucket_name,
+            extra={"s3_key": file_location, "s3_bucket": bucket_name},
+        )
         raise e
 
 
@@ -38,6 +46,7 @@ class S3ObjectNotFound(botocore.exceptions.ClientError):
     pass
 
 
+@extract_reraise_chained_exception(EventletTimeout)
 def s3download(bucket_name, filename):
     try:
         s3 = resource("s3")
@@ -50,6 +59,7 @@ def s3download(bucket_name, filename):
 S3_MULTIPART_UPLOAD_MIN_PART_SIZE = 5 * 1024 * 1024  # 5MB minimum multi part upload size
 
 
+@extract_reraise_chained_exception(EventletTimeout)
 def s3_multipart_upload_create(bucket_name, file_location, content_type="binary/octet-stream"):
     s3 = client("s3")
 
@@ -60,11 +70,15 @@ def s3_multipart_upload_create(bucket_name, file_location, content_type="binary/
         return response
     except botocore.exceptions.ClientError as e:
         current_app.logger.error(
-            "Unable to create multipart upload in S3 bucket %s for file %s", bucket_name, file_location
+            "Unable to create multipart upload in S3 bucket %s for file %s",
+            bucket_name,
+            file_location,
+            extra={"s3_key": file_location, "s3_bucket": bucket_name},
         )
         raise e
 
 
+@extract_reraise_chained_exception(EventletTimeout)
 def s3_multipart_upload_part(part_number, bucket_name, filename, upload_id, data_bytes):
     s3 = client("s3")
 
@@ -79,11 +93,16 @@ def s3_multipart_upload_part(part_number, bucket_name, filename, upload_id, data
         return response
     except botocore.exceptions.ClientError as e:
         current_app.logger.exception(
-            "Unable to upload part %s in S3 bucket %s for file %s", part_number, bucket_name, filename
+            "Unable to upload part %s in S3 bucket %s for file %s",
+            part_number,
+            bucket_name,
+            filename,
+            extra={"s3_key": filename, "s3_bucket": bucket_name, "part_number": part_number, "upload_id": upload_id},
         )
         raise e
 
 
+@extract_reraise_chained_exception(EventletTimeout)
 def s3_multipart_upload_complete(bucket_name, filename, upload_id, parts):
     s3 = client("s3")
     try:
@@ -95,11 +114,16 @@ def s3_multipart_upload_complete(bucket_name, filename, upload_id, parts):
         )
     except botocore.exceptions.ClientError as e:
         current_app.logger.exception(
-            "Unable to complete multipart upload %s in S3 bucket %s for file %s", upload_id, bucket_name, filename
+            "Unable to complete multipart upload %s in S3 bucket %s for file %s",
+            upload_id,
+            bucket_name,
+            filename,
+            extra={"s3_key": filename, "s3_bucket": bucket_name, "upload_id": upload_id},
         )
         raise e
 
 
+@extract_reraise_chained_exception(EventletTimeout)
 def s3_multipart_upload_abort(bucket_name, filename, upload_id):
     s3 = client("s3")
 
@@ -107,6 +131,10 @@ def s3_multipart_upload_abort(bucket_name, filename, upload_id):
         s3.abort_multipart_upload(Bucket=bucket_name, Key=filename, UploadId=upload_id)
     except botocore.exceptions.ClientError as e:
         current_app.logger.exception(
-            "Unable to abort multipart upload %s in S3 bucket %s for file %s", upload_id, bucket_name, filename
+            "Unable to abort multipart upload %s in S3 bucket %s for file %s",
+            upload_id,
+            bucket_name,
+            filename,
+            extra={"s3_key": filename, "s3_bucket": bucket_name, "upload_id": upload_id},
         )
         raise e

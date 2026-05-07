@@ -56,7 +56,7 @@ def test_zendesk_client_send_ticket_to_zendesk_error(zendesk_client, app, rmock,
     with pytest.raises(ZendeskError), caplog.at_level(logging.ERROR):
         zendesk_client.send_ticket_to_zendesk(ticket)
 
-    assert "Zendesk create ticket request failed with 401 '{'foo': 'bar'}'" in caplog.messages
+    assert "Zendesk create ticket request failed with 401: {'foo': 'bar'}" in caplog.messages
 
 
 @pytest.mark.skip("[NOTIFYNL] Zendesk vars change")
@@ -75,8 +75,8 @@ def test_zendesk_client_send_ticket_to_zendesk_with_user_suspended_error(zendesk
     response = zendesk_client.send_ticket_to_zendesk(ticket)
 
     assert caplog.messages == [
-        "Zendesk create ticket failed because user is suspended "
-        "'{'requester': [{'description': 'Requester: Joe Bloggs is suspended.'}]}'"
+        "Zendesk create ticket failed because user is suspended: "
+        "{'requester': [{'description': 'Requester: Joe Bloggs is suspended.'}]}"
     ]
     assert response is None
 
@@ -222,6 +222,40 @@ def test_notify_support_ticket_request_data_custom_fields(
     assert {"id": "1900000745014", "value": service_id} in notify_ticket_form.request_data["ticket"]["custom_fields"]
     assert {"id": "15925693889308", "value": user_created_at} in notify_ticket_form.request_data["ticket"][
         "custom_fields"
+    ]
+
+
+def test_notify_support_ticket_request_data_accepts_custom_topics():
+    notify_ticket_form = NotifySupportTicket(
+        "subject", "message", "question", custom_topics=[{"123": "topic_1", "345": "topic_2", "678": "topic_3"}]
+    )
+
+    assert notify_ticket_form.request_data["ticket"]["custom_fields"] == [
+        {
+            "id": "14229641690396",
+            "value": None,
+        },
+        {
+            "id": "360022943959",
+            "value": None,
+        },
+        {
+            "id": "360022943979",
+            "value": None,
+        },
+        {
+            "id": "1900000745014",
+            "value": None,
+        },
+        {
+            "id": "15925693889308",
+            "value": None,
+        },
+        {
+            "123": "topic_1",
+            "345": "topic_2",
+            "678": "topic_3",
+        },
     ]
 
 
