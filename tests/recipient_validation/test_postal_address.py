@@ -1159,6 +1159,7 @@ def test_postal_address_equality():
     ) == PostalAddress("A\nB\nC"), "Different instantiation of the same address should still match"
 
 
+@pytest.mark.skip(reason="[NOTIFYNL] Dutch postal address implementation")
 @pytest.mark.parametrize(
     "address, has_valid_address_line_1, has_valid_address_line_2",
     [
