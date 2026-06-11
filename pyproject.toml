@@ -19,13 +19,13 @@ dependencies = [
     "Flask-Redis>=0.4.0",
     "Flask>=3.1.1",
     "govuk-bank-holidays>=0.17",
-    "gunicorn[eventlet]>=23.0.0",
+    "gunicorn[eventlet]>=23.0.0,<26.0.0",  # v26.0.0 doesn't support eventlet
     "itsdangerous>=2.2.0",
     "Jinja2>=3.1.6",
     "mistune<2.0.0",  # v2 is totally incompatible with unclear benefit
     "ordered-set>=4.1.0",
     "phonenumbers>=9.0.9",
-    "pypdf==6.9.2",
+    "pypdf>=3.13.0",
     "python-dateutil>=2.9.0",
     "python-json-logger>=3.3.0",
     "pyyaml>=6.0.2",
@@ -35,7 +35,6 @@ dependencies = [
     "statsd>=4.0.1",
     "opentelemetry-api>=1.40.0",
     "requirements-parser",
-    "urllib3>=2.6.0"
 ]
 
 [project.urls]
@@ -51,61 +50,8 @@ addopts = "-p no:warnings -n auto"
 [tool.pytest.ini_options.env]
 REDIS_ENABLED = "0"
 
-[tool.ruff]
-extend-exclude = [
-    "migrations/versions/",
-    "__pycache__",
-    "cache",
-    "migrations",
-    "build",
-    "sample_cap_xml_documents.py",
-]
-line-length = 120
-target-version = "py313"
-
-[tool.ruff.lint]
-select = [
-    "E",       # pycodestyle
-    "W",       # pycodestyle
-    "F",       # pyflakes
-    "I",       # isort
-    "B",       # flake8-bugbear
-    "C90",     # mccabe cyclomatic complexity
-    "G",       # flake8-logging-format
-    "T20",     # flake8-print
-    "UP",      # pyupgrade
-    "C4",      # flake8-comprehensions
-    "ISC",     # flake8-implicit-str-concat
-    "RSE",     # flake8-raise
-    "PIE",     # flake8-pie
-    "N804",    # First argument of a class method should be named `cls`
-    "RUF100",  # Checks for noqa directives that are no longer applicable
-]
-ignore = []
-
-# TODO: test if we can remove everything from markers as they did in upstream
 [tool.setuptools.dynamic]
 version = {attr = "notifications_utils.version.__version__"}
 
 [tool.setuptools.packages.find]
 exclude = ["tests*"]
-
-[dependency-groups]
-dev = [
-    "beautifulsoup4==4.12.3",
-    "build==1.2.2",
-    "celery==5.3.6",
-    "freezegun==1.5.1",
-    "pre-commit>=4.2.0",
-    "pytest==8.3.4",
-    "pytest-cov>=6.1.1",
-    "pytest-emoji>=0.2.0",
-    "pytest-env==1.1.5",
-    "pytest-md>=0.2.0",
-    "pytest-mock==3.14.0",
-    "pytest-testmon==2.1.1",
-    "pytest-xdist==3.6.1",
-    "redis>=4.3.4",
-    "requests-mock==1.12.1",
-    "ruff==0.11.4",
-]
