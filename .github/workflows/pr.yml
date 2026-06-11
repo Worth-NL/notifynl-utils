@@ -54,10 +54,14 @@ jobs:
           enable-cache: true
           cache-dependency-glob: |
             pyproject.toml
+            requirements_for_test.txt
             uv.lock
 
-      - name: Install application requirements (pip)[${{ matrix.python-version }}]
+      - name: Install application requirements (uv)[${{ matrix.python-version }}]
         run: uv sync
+
+      - name: Install application requirements (pip)[${{ matrix.python-version }}]
+        run: uv pip install -r requirements_for_test.txt
 
       - uses: astral-sh/ruff-action@v3
 
