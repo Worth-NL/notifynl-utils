@@ -2,6 +2,7 @@ import inspect
 import logging
 import uuid
 from datetime import UTC, datetime
+from functools import partial
 from unittest.mock import Mock
 
 import pytest
@@ -104,17 +105,20 @@ def test_do_not_decrement_below_bucket_min(app, redis_client_with_live_instance)
     assert tokens_remaining == -1
 
 
-@freeze_time("2001-01-01 12:00:00.000000", auto_tick_seconds=0.1)
 def test_bucket_replenishment_tops_up_bucket_after_interval(app, redis_client_with_live_instance):
-    key = "rate-limit-test-key"
-    replenish_per_sec = 5
-    bucket_max = 100
-    bucket_min = -100
-    redis_client_with_live_instance.get_remaining_bucket_tokens(key, replenish_per_sec, bucket_max, bucket_min)
-    redis_client_with_live_instance.get_remaining_bucket_tokens(key, replenish_per_sec, bucket_max, bucket_min)
-    tokens_remaining = redis_client_with_live_instance.get_remaining_bucket_tokens(
-        key, replenish_per_sec, bucket_max, bucket_min
+    get = partial(
+        redis_client_with_live_instance.get_remaining_bucket_tokens,
+        key="rate-limit-test-key",
+        replenish_per_sec=5,
+        bucket_max=100,
+        bucket_min=-100,
     )
+    with freeze_time("2001-01-01 12:00:00.000000"):
+        get()
+    with freeze_time("2001-01-01 12:00:00.100000"):
+        get()
+    with freeze_time("2001-01-01 12:00:00.200000"):
+        tokens_remaining = get()
     assert tokens_remaining == 98
 
 
@@ -143,15 +147,19 @@ def mocked_redis_client(app, mocked_redis_pipeline, delete_mock, mocker):
     return redis_client
 
 
+class MyException(Exception):
+    pass
+
+
 @pytest.fixture
 def failing_redis_client(mocked_redis_client, delete_mock):
-    mocked_redis_client.redis_store.get.side_effect = Exception("get failed")
-    mocked_redis_client.redis_store.set.side_effect = Exception("set failed")
-    mocked_redis_client.redis_store.incr.side_effect = Exception("incr failed")
-    mocked_redis_client.redis_store.decrby.side_effect = Exception("decrby failed")
-    mocked_redis_client.redis_store.pipeline.side_effect = Exception("pipeline failed")
-    mocked_redis_client.redis_store.delete.side_effect = Exception("delete failed")
-    delete_mock.side_effect = Exception("delete by pattern failed")
+    mocked_redis_client.redis_store.get.side_effect = MyException("get failed")
+    mocked_redis_client.redis_store.set.side_effect = MyException("set failed")
+    mocked_redis_client.redis_store.incr.side_effect = MyException("incr failed")
+    mocked_redis_client.redis_store.decrby.side_effect = MyException("decrby failed")
+    mocked_redis_client.redis_store.pipeline.side_effect = MyException("pipeline failed")
+    mocked_redis_client.redis_store.delete.side_effect = MyException("delete failed")
+    delete_mock.side_effect = MyException("delete by pattern failed")
     return mocked_redis_client
 
 
@@ -182,32 +190,62 @@ def test_should_raise_exception_if_raise_set_to_true(
     app,
     failing_redis_client,
 ):
-    with pytest.raises(Exception) as e:
+    with pytest.raises(MyException) as e:
         failing_redis_client.get("test", raise_exception=True)
     assert str(e.value) == "get failed"
 
-    with pytest.raises(Exception) as e:
+    with pytest.raises(MyException) as e:
         failing_redis_client.set("test", "test", raise_exception=True)
     assert str(e.value) == "set failed"
 
-    with pytest.raises(Exception) as e:
+    with pytest.raises(MyException) as e:
         failing_redis_client.incr("test", raise_exception=True)
     assert str(e.value) == "incr failed"
 
-    with pytest.raises(Exception) as e:
+    with pytest.raises(MyException) as e:
         failing_redis_client.decrby("test", 7, raise_exception=True)
     assert str(e.value) == "decrby failed"
 
-    with pytest.raises(Exception) as e:
+    with pytest.raises(MyException) as e:
         failing_redis_client.exceeded_rate_limit("test", 100, 200, raise_exception=True)
     assert str(e.value) == "pipeline failed"
 
-    with pytest.raises(Exception) as e:
+    with pytest.raises(MyException) as e:
         failing_redis_client.delete("test", raise_exception=True)
     assert str(e.value) == "delete failed"
 
-    with pytest.raises(Exception) as e:
+    with pytest.raises(MyException) as e:
         failing_redis_client.delete_by_pattern("pattern", raise_exception=True)
+    assert str(e.value) == "delete by pattern failed"
+
+
+def test_should_raise_exception_if_in_always_raise(app, failing_redis_client):
+    with pytest.raises(MyException) as e:
+        failing_redis_client.get("test", raise_exception=False, always_raise=(MyException,))
+    assert str(e.value) == "get failed"
+
+    with pytest.raises(MyException) as e:
+        failing_redis_client.set("test", "test", raise_exception=False, always_raise=(MyException,))
+    assert str(e.value) == "set failed"
+
+    with pytest.raises(MyException) as e:
+        failing_redis_client.incr("test", raise_exception=False, always_raise=(MyException,))
+    assert str(e.value) == "incr failed"
+
+    with pytest.raises(MyException) as e:
+        failing_redis_client.decrby("test", 7, raise_exception=False, always_raise=(MyException,))
+    assert str(e.value) == "decrby failed"
+
+    with pytest.raises(MyException) as e:
+        failing_redis_client.exceeded_rate_limit("test", 100, 200, raise_exception=False, always_raise=(MyException,))
+    assert str(e.value) == "pipeline failed"
+
+    with pytest.raises(MyException) as e:
+        failing_redis_client.delete("test", raise_exception=False, always_raise=(MyException,))
+    assert str(e.value) == "delete failed"
+
+    with pytest.raises(MyException) as e:
+        failing_redis_client.delete_by_pattern("pattern", raise_exception=False, always_raise=(MyException,))
     assert str(e.value) == "delete by pattern failed"
 
 

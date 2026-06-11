@@ -1,148 +1,188 @@
 import logging
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from os import getpid
 
 from celery import Celery, Task
-from flask import g, request
+from celery.backends.base import DisabledBackend
+from flask import Flask, current_app, g, request
 from flask.ctx import has_app_context, has_request_context
+from opentelemetry import metrics
+
+from notifications_utils.clients.statsd.statsd_client import StatsdClient
+from notifications_utils.semconv import TASK_DURATION_HISTOGRAM_BUCKETS
+
+duration_histogram = metrics.get_meter(__name__).create_histogram(
+    "celery.task.duration",
+    unit="s",
+    description="The amount of time it took for the task to run.",
+    explicit_bucket_boundaries_advisory=TASK_DURATION_HISTOGRAM_BUCKETS,
+)
 
 
-def make_task(app):
-    class NotifyTask(Task):
-        abstract = True
-        start = None
+class NotifyTask(Task):
+    abstract = True
+    start = None
 
-        def __init__(self, *args, **kwargs):
-            # custom task-decorator arguments magically get applied as class attributes (!),
-            # provide a default if this is missing
-            self.early_log_level = getattr(self, "early_log_level", logging.INFO)
-            super().__init__(*args, **kwargs)
+    def __init__(self, *args, **kwargs):
+        # custom task-decorator arguments magically get applied as class attributes (!),
+        # provide a default if this is missing
+        self.early_log_level = getattr(self, "early_log_level", logging.INFO)
+        super().__init__(*args, **kwargs)
 
-        @property
-        def queue_name(self):
-            delivery_info = self.request.delivery_info or {}
-            return delivery_info.get("routing_key", "none")
+    @property
+    def queue_name(self):
+        delivery_info = self.request.delivery_info or {}
+        return delivery_info.get("routing_key", "none")
 
-        @property
-        def request_id(self):
-            # Note that each header is a direct attribute of the
-            # task context (aka "request").
-            return self.request.get("notify_request_id") or self.request.id
+    @property
+    def request_id(self):
+        # Note that each header is a direct attribute of the
+        # task context (aka "request").
+        return self.request.get("notify_request_id") or self.request.id
 
-        @contextmanager
-        def app_context(self):
-            with app.app_context():
-                # Add 'request_id' to 'g' so that it gets logged.
-                g.request_id = self.request_id
-                yield
+    @property
+    def message_group_id(self):
+        return self.request.get("notify_message_group_id")
 
-        def on_success(self, retval, task_id, args, kwargs):
-            # enables request id tracing for these logs
-            with self.app_context():
-                elapsed_time = time.monotonic() - self.start
+    @contextmanager
+    def app_context(self):
+        # we don't want to push a *another* app context if we already have one and this isn't an async call
+        with self.app.flask_app.app_context() if self.request.id or not has_app_context() else nullcontext():
+            # Add 'request_id' to 'g' so that it gets logged.
+            g.request_id = self.request_id
+            yield
 
-                app.logger.info(
-                    "Celery task %s (queue: %s) took %.4f",
+    def _record_duration(self, duration: float, status: str) -> None:
+        duration_histogram.record(
+            duration,
+            {
+                "celery.task.name": self.name,
+                "celery.task.status": status,
+                "sqs.queue.name": self.queue_name,
+            },
+        )
+
+    def on_success(self, retval, task_id, args, kwargs):
+        # enables request id tracing for these logs
+        with self.app_context():
+            elapsed_time = time.monotonic() - self.start
+
+            self.app.flask_app.logger.info(
+                "Celery task %s (queue: %s) took %.4f",
+                self.name,
+                self.queue_name,
+                elapsed_time,
+                extra={
+                    "celery_task": self.name,
+                    "celery_task_id": self.request.id,
+                    "queue_name": self.queue_name,
+                    "retry_number": self.request.retries,
+                    "duration": elapsed_time,
+                    # avoid name collision with LogRecord's own `process` attribute
+                    "process_": getpid(),
+                },
+            )
+
+            self.app.flask_app.statsd_client.timing(
+                f"celery.{self.queue_name}.{self.name}.success",
+                elapsed_time,
+            )
+
+            self._record_duration(elapsed_time, "success")
+
+    def on_retry(self, exc, task_id, args, kwargs, einfo):
+        # enables request id tracing for these logs
+        with self.app_context():
+            elapsed_time = time.monotonic() - self.start
+
+            self.app.flask_app.logger.warning(
+                "Celery task %s (queue: %s) failed for retry after %.4f",
+                self.name,
+                self.queue_name,
+                elapsed_time,
+                exc_info=True,
+                extra={
+                    "celery_task": self.name,
+                    "celery_task_id": self.request.id,
+                    "queue_name": self.queue_name,
+                    "retry_number": self.request.retries,
+                    "duration": elapsed_time,
+                    # avoid name collision with LogRecord's own `process` attribute
+                    "process_": getpid(),
+                },
+            )
+
+            self.app.flask_app.statsd_client.timing(
+                f"celery.{self.queue_name}.{self.name}.retry",
+                elapsed_time,
+            )
+
+            self._record_duration(elapsed_time, "retry")
+
+    def on_failure(self, exc, task_id, args, kwargs, einfo):
+        # enables request id tracing for these logs
+        with self.app_context():
+            elapsed_time = time.monotonic() - self.start
+
+            self.app.flask_app.logger.exception(
+                "Celery task %s (queue: %s) failed after %.4f",
+                self.name,
+                self.queue_name,
+                elapsed_time,
+                extra={
+                    "celery_task": self.name,
+                    "celery_task_id": self.request.id,
+                    "queue_name": self.queue_name,
+                    "retry_number": self.request.retries,
+                    "duration": elapsed_time,
+                    # avoid name collision with LogRecord's own `process` attribute
+                    "process_": getpid(),
+                },
+            )
+
+            self.app.flask_app.statsd_client.incr(f"celery.{self.queue_name}.{self.name}.failure")
+
+            self._record_duration(elapsed_time, "failure")
+
+    def __call__(self, *args, **kwargs):
+        # ensure task has flask context to access config, logger, etc
+        with self.app_context():
+            self.start = time.monotonic()
+
+            if self.request.id is not None:
+                # we're not being called synchronously
+                self.app.flask_app.logger.log(
+                    self.early_log_level,
+                    "Celery task %s (queue: %s) started",
                     self.name,
                     self.queue_name,
-                    elapsed_time,
                     extra={
                         "celery_task": self.name,
                         "celery_task_id": self.request.id,
                         "queue_name": self.queue_name,
-                        "time_taken": elapsed_time,
+                        "retry_number": self.request.retries,
                         # avoid name collision with LogRecord's own `process` attribute
                         "process_": getpid(),
                     },
                 )
 
-                app.statsd_client.timing(
-                    f"celery.{self.queue_name}.{self.name}.success",
-                    elapsed_time,
-                )
-
-        def on_retry(self, exc, task_id, args, kwargs, einfo):
-            # enables request id tracing for these logs
-            with self.app_context():
-                elapsed_time = time.monotonic() - self.start
-
-                app.logger.warning(
-                    "Celery task %s (queue: %s) failed for retry after %.4f",
-                    self.name,
-                    self.queue_name,
-                    elapsed_time,
-                    extra={
-                        "celery_task": self.name,
-                        "celery_task_id": self.request.id,
-                        "queue_name": self.queue_name,
-                        "time_taken": elapsed_time,
-                        # avoid name collision with LogRecord's own `process` attribute
-                        "process_": getpid(),
-                    },
-                )
-
-                app.statsd_client.timing(
-                    f"celery.{self.queue_name}.{self.name}.retry",
-                    elapsed_time,
-                )
-
-        def on_failure(self, exc, task_id, args, kwargs, einfo):
-            # enables request id tracing for these logs
-            with self.app_context():
-                elapsed_time = time.monotonic() - self.start
-
-                app.logger.exception(
-                    "Celery task %s (queue: %s) failed after %.4f",
-                    self.name,
-                    self.queue_name,
-                    elapsed_time,
-                    extra={
-                        "celery_task": self.name,
-                        "celery_task_id": self.request.id,
-                        "queue_name": self.queue_name,
-                        "time_taken": elapsed_time,
-                        # avoid name collision with LogRecord's own `process` attribute
-                        "process_": getpid(),
-                    },
-                )
-
-                app.statsd_client.incr(f"celery.{self.queue_name}.{self.name}.failure")
-
-        def __call__(self, *args, **kwargs):
-            # ensure task has flask context to access config, logger, etc
-            with self.app_context():
-                self.start = time.monotonic()
-
-                if self.request.id is not None:
-                    # we're not being called synchronously
-                    app.logger.log(
-                        self.early_log_level,
-                        "Celery task %s (queue: %s) started",
-                        self.name,
-                        self.queue_name,
-                        extra={
-                            "celery_task": self.name,
-                            "celery_task_id": self.request.id,
-                            "queue_name": self.queue_name,
-                            # avoid name collision with LogRecord's own `process` attribute
-                            "process_": getpid(),
-                        },
-                    )
-
-                return super().__call__(*args, **kwargs)
-
-    return NotifyTask
+            return super().__call__(*args, **kwargs)
 
 
 class NotifyCelery(Celery):
-    def init_app(self, app):
-        super().__init__(
-            task_cls=make_task(app),
-        )
+    flask_app: Flask | None = None
 
-        # Make sure this is present upfront to avoid errors later on.
-        assert app.statsd_client
+    def __init__(self, *args, **kwargs):
+        kwargs["task_cls"] = NotifyTask
+        super().__init__(*args, **kwargs)
+
+    def init_app(self, app):
+        self.flask_app = app
+
+        # Make sure we have a StatsD client (even if it's just a stub) to avoid errors later on.
+        if not hasattr(app, "statsd_client"):
+            app.statsd_client = StatsdClient()
 
         # Configure Celery app with options from the main app config.
         self.conf.update(app.config["CELERY"])
@@ -156,4 +196,30 @@ class NotifyCelery(Celery):
         elif has_app_context() and "request_id" in g:
             other_kwargs["headers"]["notify_request_id"] = g.request_id
 
+        use_message_group_ids = has_app_context() and current_app.config.get("ENABLE_SQS_MESSAGE_GROUP_IDS", False)
+        message_group_id = other_kwargs.get("MessageGroupId")
+        drop_message_group_id = not (use_message_group_ids and message_group_id)
+
+        if "MessageGroupId" in other_kwargs and not message_group_id:
+            logger = current_app.logger if has_app_context() else logging.getLogger(__name__)
+            logger.warning(
+                "MessageGroupId argument specified explicitly with empty value when calling task %s",
+                name,
+                extra={"celery_task": name},
+            )
+
+        if use_message_group_ids:
+            # Kombu doesn't expose MessageGroupId from received SQS messages, so store in headers
+            # so the running task can read it (e.g. for retries) via self.message_group_id
+            other_kwargs["headers"]["notify_message_group_id"] = message_group_id
+        if drop_message_group_id:
+            other_kwargs.pop("MessageGroupId", None)
+
         return super().send_task(name, args, kwargs, **other_kwargs)
+
+    def _get_backend(self):
+        # We want it to instantly return a DisabledBackend object if result_backend is None without expending
+        # resources in scanning for a none existent backend store.
+        if self.conf.result_backend is None:
+            return DisabledBackend(app=self)
+        return super()._get_backend()

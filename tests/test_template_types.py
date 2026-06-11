@@ -99,9 +99,7 @@ def test_brand_banner_shows():
         )
     )
     assert ('<td width="10" height="10" valign="middle"></td>') not in email
-    assert (
-        'role="presentation" width="100%" style="border-collapse: collapse;min-width: 100%;width: 100% !important;"'
-    ) in email
+    assert ('<td width="100%" height="53" bgcolor="#0b0c0c">') in email
 
 
 @pytest.mark.parametrize(
@@ -744,7 +742,9 @@ def test_phone_templates_normalise_whitespace(template_class):
     [
         ({}, "12 December 2012"),
         ({"date": None}, "12 December 2012"),
-        ({"date": datetime.date.fromtimestamp(0)}, "1 January 1970"),
+        ({"date": datetime.datetime.fromtimestamp(0)}, "1 January 1970"),
+        ({"date": datetime.datetime(2026, 1, 6, 23, 1)}, "6 January 2026"),  # GMT
+        ({"date": datetime.datetime(2026, 5, 6, 23, 1)}, "7 May 2026"),  # British Summer Time
     ],
 )
 def test_letter_preview_renderer(
@@ -2317,5 +2317,42 @@ def test_unsubscribe_link_is_rendered(
                 {"content": "Hello world", "subject": "subject", "template_type": "email"},
                 {},
             )
+        )
+    )
+
+
+def test_html_entities_in_html_email():
+    assert "[ ] ( ) * / # &amp; &nbsp; ^" in str(
+        HTMLEmailTemplate(
+            {
+                "content": "&lsqb; &rsqb; &lpar; &rpar; &ast; &sol; &num; &amp; &nbsp; &Hat;",
+                "subject": "subject",
+                "template_type": "email",
+            },
+        )
+    )
+
+
+def test_html_entities_in_plain_text_email():
+    assert "[ ] ( ) * / # & \xa0 ^\n" == str(
+        PlainTextEmailTemplate(
+            {
+                "content": "&lsqb; &rsqb; &lpar; &rpar; &ast; &sol; &num; &amp; &nbsp; &Hat;",
+                "subject": "subject",
+                "template_type": "email",
+            }
+        )
+    )
+
+
+def test_lpar_rpar_in_conditional_placeholder():
+    assert "(with brackets)" in str(
+        HTMLEmailTemplate(
+            {
+                "content": "((conditional?&lpar;with brackets&rpar;))",
+                "subject": "subject",
+                "template_type": "email",
+            },
+            values={"conditonal": "yes"},
         )
     )

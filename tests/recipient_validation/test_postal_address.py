@@ -50,6 +50,12 @@ def test_raw_address():
         """,
             Country("Germany"),
         ),
+        (
+            """
+        GBR
+        """,
+            Country("United Kingdom"),
+        ),
     ),
 )
 def test_country(address, expected_country):
@@ -76,6 +82,15 @@ def test_country(address, expected_country):
             """
         123 Example Street
         City of Town
+        United Kingdom
+        """,
+            False,
+        ),
+        (
+            """
+        123 Example Street
+        City of Town
+        Scotland
         United Kingdom
         """,
             False,
@@ -168,6 +183,20 @@ def test_has_enough_lines(address, enough_lines_expected):
         Line 5
         Line 6
         Line 7
+        Scotland
+        United Kingdom
+        """,
+            False,
+        ),
+        (
+            """
+        Line 1
+        Line 2
+        Line 3
+        Line 4
+        Line 5
+        Line 6
+        Line 7
         Line 8
         """,
             True,
@@ -193,6 +222,16 @@ def test_has_too_many_lines(address, too_many_lines_expected):
         SW1A 1AA
         """,
             "SW1A 1AA",
+        ),
+        (
+            """
+        123 Example Street
+        City of Town
+        EH1 1TG
+        Scotland
+        United Kingdom
+        """,
+            "EH1 1TG",
         ),
         (
             """
@@ -426,6 +465,17 @@ def test_international(address, expected_international):
             ("123 Example Straße\nGermany"),
             ("123 Example Straße, Germany"),
         ),
+        (
+            """
+                Senedd Cymru
+                Cardiff
+                CF99 1SN
+                Cymru
+                UK
+        """,
+            ("Senedd Cymru\nCardiff\nCF99 1SN"),
+            ("Senedd Cymru, Cardiff, CF99 1SN"),
+        ),
     ),
 )
 def test_normalised(address, expected_normalised, expected_as_single_line):
@@ -517,6 +567,29 @@ def test_from_personalisation(personalisation):
     assert PostalAddress.from_personalisation(personalisation).normalised == (
         "123 Example Street\nCity of Town\nSW1A 1AA"
     )
+
+
+@pytest.mark.skip(reason="[NOTIFYNL] Dutch postal address implementation")
+@pytest.mark.parametrize(
+    "postal_address",
+    (
+        PostalAddress("""
+        Northern Ireland
+        United Kingdom
+    """),
+        PostalAddress.from_personalisation(
+            {
+                "address_line_1": "",
+                "address_line_3": "GBR",
+                "address_line_7": "",
+            }
+        ),
+    ),
+)
+def test_handles_addresses_which_are_exclusively_uk_countries(postal_address):
+    assert postal_address.normalised == ""
+    assert postal_address.postcode is None
+    assert postal_address.valid is False
 
 
 @pytest.mark.skip(reason="[NOTIFYNL] Dutch postal address implementation")
@@ -1084,3 +1157,63 @@ def test_postal_address_equality():
     assert PostalAddress.from_personalisation(
         {"address_line_1": "A", "address_line_2": "B", "address_line_3": "C"}
     ) == PostalAddress("A\nB\nC"), "Different instantiation of the same address should still match"
+
+
+@pytest.mark.skip(reason="[NOTIFYNL] Dutch postal address implementation")
+@pytest.mark.parametrize(
+    "address, has_valid_address_line_1, has_valid_address_line_2",
+    [
+        # Invalid Address Line 1 (recipient name) - only symbols
+        (
+            """
+        !!!
+        123 Example Street
+        SW1A 1AA
+        """,
+            False,
+            True,
+        ),
+        # Invalid Address Line 2 (1st line of the address) - only symbols
+        (
+            """
+        Mr. Recipient
+        ???
+        SW1A 1AA
+        """,
+            True,
+            False,
+        ),
+        # Both invalid
+        (
+            """
+        !!!
+        ???
+        SW1A 1AA
+        """,
+            False,
+            False,
+        ),
+        # Address invalid
+        (
+            """
+        Mr. Recipient
+        SW1A 1AA
+        """,
+            True,
+            True,
+        ),
+        # Empty address
+        (
+            "",
+            False,
+            False,
+        ),
+    ],
+)
+def test_has_alphanumeric_character_in_address_lines_1_and_2(
+    address, has_valid_address_line_1, has_valid_address_line_2
+):
+    assert PostalAddress(address).valid is False
+    assert PostalAddress(address).has_alphanumeric_character_in_address_lines_1_and_2 is (
+        has_valid_address_line_1 and has_valid_address_line_2
+    )
