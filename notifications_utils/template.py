@@ -530,7 +530,7 @@ class HTMLEmailTemplate(BaseEmailTemplate):
         self.brand_colour = brand_colour
         self.brand_banner = brand_banner
         self.brand_alt_text = brand_alt_text
-        self.brand_height = int(brand_height) if brand_height is not None else None
+        self.brand_height = int(brand_height) if brand_height else None
         self.brand_alignment = brand_alignment
         self.rebrand = rebrand
         self.asset_path = asset_path
