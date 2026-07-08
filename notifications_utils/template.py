@@ -516,6 +516,8 @@ class HTMLEmailTemplate(BaseEmailTemplate):
         brand_colour=None,
         brand_banner=False,
         brand_alt_text=None,
+        brand_height=None,
+        brand_alignment=None,
         rebrand=False,
         asset_path="https://static.notifynl.nl/",
         **kwargs,
@@ -528,6 +530,8 @@ class HTMLEmailTemplate(BaseEmailTemplate):
         self.brand_colour = brand_colour
         self.brand_banner = brand_banner
         self.brand_alt_text = brand_alt_text
+        self.brand_height = int(brand_height) if brand_height is not None else None
+        self.brand_alignment = brand_alignment
         self.rebrand = rebrand
         self.asset_path = asset_path
 
@@ -563,6 +567,8 @@ class HTMLEmailTemplate(BaseEmailTemplate):
                 "brand_colour": self.brand_colour,
                 "brand_banner": self.brand_banner,
                 "brand_alt_text": self.brand_alt_text,
+                "brand_height": self.brand_height,
+                "brand_alignment": self.brand_alignment,
                 "rebrand": self.rebrand,
                 "asset_path": self.asset_path,
             }

@@ -21,7 +21,7 @@
       }
     }
     body { margin:0 !important; }
-    div[style*="margin: 16px 0"] { margin:0 !important; }
+
   </style>
 </head>
 
@@ -36,7 +36,7 @@
           <tr>
             <td valign="bottom">
               <a href="https://www.rijksoverheid.nl/" title="Ga naar de website van de rijksoverheid." style="text-decoration: none;color: #fff">
-                <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse;margin:0 auto">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse;margin:0 auto;display:table;">
                   <tr>
                     <td valign="bottom" height="60" class="logo__goverment">
                       <img  alt="rijksoverheid logo"
@@ -58,7 +58,7 @@
   {% set brand_colour = brand_colour if brand_colour else '#0b0c0c' %}
   <table role="presentation" width="100%" style="border-collapse: collapse;min-width: 100%;width: 100% !important;" cellpadding="0" cellspacing="0" border="0">
       <tr>
-        <td width="100%" height="53" bgcolor="{{brand_colour}}">
+        <td width="100%"  bgcolor="{{brand_colour}}" style="padding: 0 10px;">
           <!--[if (gte mso 9)|(IE)]>
             <table role="presentation" width="580" align="center" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse;width: 580px;">
               <tr>
@@ -68,22 +68,21 @@
             <tr>
               {% if brand_logo %}
                 <td
-                  width="70"
-                  height="{% if brand_text -%} 27 {%- else -%} 54 {%- endif %}"
                   bgcolor="{{brand_colour}}"
                   valign="middle"
-                  style="padding: 10px 0px 12px 10px"
+                  align="{{ brand_alignment or 'left' }}"
+                  style="display: table-cell;padding: 12px; max-height:300px"
                 >
                   <img
                     src="{{ brand_logo }}"
                     border="0"
-                    style="display: block; border: 0;"
-                    height="{% if brand_text -%} 27 {%- else -%} 54 {%- endif %}"
+                    {% if brand_height %}height="{{ brand_height }}"{% endif %}
+                    style="display: block; border: 0; max-width:100%; max-height:300px; {% if brand_height %}height:{{ brand_height }}px;{% else %}height:auto;{% endif %}"
                     alt="{% if brand_text %}{% else -%}{{ brand_alt_text }}{%- endif %}"
                   >
                 </td>
               {% endif %}
-              {% if brand_text %}
+              {# {% if brand_text %}
                 <td width="100%" bgcolor="{{brand_colour}}" valign="middle" align="left" style="padding: 14px 0 14px 10px">
                   <span style="
                     display: block;
@@ -96,7 +95,7 @@
                       {{ brand_text }}
                   </span>
                 </td>
-              {% endif %}
+              {% endif %} #}
             </tr>
           </table>
           <!--[if (gte mso 9)|(IE)]>
@@ -133,10 +132,10 @@
                   </tr>
                   <tr>
                     <td>
-                      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse">
+                      <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="{{ brand_alignment or 'left' }}" style="border-collapse: collapse">
                         <tr>
-                          <td style="padding: 0 5px 0{% if brand_colour %} 7px; border-left: solid 2px {{ brand_colour }}{% else %} 0{% endif %}{% if not brand_text -%}; max-height: 54px{%- endif %}">
-                            <img src="{{ brand_logo }}" style="display: block; border: 0{% if not brand_text -%}; max-height: 54px{%- endif %}" height="{% if brand_text -%}27{%- else -%}54{%- endif %}" alt="{% if brand_text %}{% else -%}{{ brand_alt_text }}{%- endif %}">
+                          <td style="padding: 0 5px 0{% if brand_colour %} 7px; border-left: solid 2px {{ brand_colour }}{% else %} 0{% endif %}max-height:300px">
+                            <img src="{{ brand_logo }}" {% if brand_height %}height="{{ brand_height }}"{% endif %} style="display: block; border: 0; max-width:100%; max-height:300px; {% if brand_height %}height:{{ brand_height }}px;{% else %}height:auto;{% endif %}" alt="{% if brand_text %}{% else -%}{{ brand_alt_text }}{%- endif %}">
                           </td>
                           {% if brand_text %}
                           <td width="100%" style="font-family: Helvetica, Arial, sans-serif; font-size: 18px; line-height: 23px;" valign="center">
