@@ -99,7 +99,8 @@ def test_brand_banner_shows():
         )
     )
     assert ('<td width="10" height="10" valign="middle"></td>') not in email
-    assert ('<td width="100%" height="53" bgcolor="#0b0c0c">') in email
+    # NL banner dropped the fixed height="53" in favour of a responsive layout (56cdbb3c).
+    assert ('<td width="100%"  bgcolor="#0b0c0c" style="padding: 0 10px;">') in email
 
 
 @pytest.mark.parametrize(
@@ -127,8 +128,10 @@ def test_brand_data_shows(brand_logo, brand_text, brand_colour):
     assert "GOV.UK" not in email
     if brand_logo:
         assert brand_logo in email
+    # brand_text is not rendered in the NL banner layout — the block is intentionally
+    # disabled pending a redesign, kept for future reference (56cdbb3c).
     if brand_text:
-        assert brand_text in email
+        assert brand_text not in email
     if brand_colour:
         assert f'bgcolor="{brand_colour}"' in email
 
