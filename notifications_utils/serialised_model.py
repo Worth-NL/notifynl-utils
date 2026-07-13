@@ -1,18 +1,12 @@
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
+from inspect import get_annotations, isclass
 from typing import Any
 
 from notifications_utils.timezones import utc_string_to_aware_gmt_datetime
 
 
-class SerialisedModelMeta(type):
-    def __init__(cls, name, bases, dict_):
-        for parent in cls.__mro__:
-            cls.__annotations__ = getattr(parent, "__annotations__", {}) | cls.__annotations__
-        super().__init__(name, bases, dict_)
-
-
-class SerialisedModel(metaclass=SerialisedModelMeta):
+class SerialisedModel:
     """
     A SerialisedModel takes a dictionary, typically created by
     serialising a database object. It then takes the value of specified
@@ -31,8 +25,12 @@ class SerialisedModel(metaclass=SerialisedModelMeta):
     annotations.
     """
 
+    def __init_subclass__(cls, **kwargs):
+        for parent in cls.__mro__:
+            cls.__annotations__ = get_annotations(parent) | get_annotations(cls)
+
     def __init__(self, _dict):
-        for property, type_ in self.__annotations__.items():
+        for property, type_ in get_annotations(type(self)).items():
             value = self.coerce_value_to_type(_dict[property], type_)
             setattr(self, property, value)
 
@@ -41,7 +39,7 @@ class SerialisedModel(metaclass=SerialisedModelMeta):
         if type_ is Any or value is None:
             return value
 
-        if issubclass(type_, datetime):
+        if isclass(type_) and issubclass(type_, datetime):
             return utc_string_to_aware_gmt_datetime(value).astimezone(UTC)
 
         return type_(value)
@@ -59,14 +57,20 @@ class SerialisedModelCollection(ABC):
     def model(self):
         pass
 
+    def _get_model_instance_from_item(self, item):
+        return self.model(item)
+
     def __init__(self, items):
         self.items = items
+
+    def __iter__(self):
+        return (self._get_model_instance_from_item(item) for item in self.items)
 
     def __bool__(self):
         return bool(self.items)
 
     def __getitem__(self, index):
-        return self.model(self.items[index])
+        return self._get_model_instance_from_item(self.items[index])
 
     def __len__(self):
         return len(self.items)

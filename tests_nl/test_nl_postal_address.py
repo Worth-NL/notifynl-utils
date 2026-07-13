@@ -441,6 +441,66 @@ def test_too_many_lines():
 
 
 # -----------------------------------------------------
+# ALPHANUMERIC CHECK
+# -----------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "address, expected",
+    [
+        # Both lines have alphanumeric — valid address
+        (
+            """
+            Name Recipient
+            123 Example Street
+            1234 AB Amsterdam
+            """,
+            True,
+        ),
+        # Both lines have alphanumeric — too few lines, property still True
+        (
+            """
+            Mr. Recipient
+            1234 AB Amsterdam
+            """,
+            True,
+        ),
+        # Line 1 has no alphanumeric
+        (
+            """
+            !!!
+            123 Example Street
+            1234 AB Amsterdam
+            """,
+            False,
+        ),
+        # Line 2 has no alphanumeric
+        (
+            """
+            Mr. Recipient
+            ???
+            1234 AB Amsterdam
+            """,
+            False,
+        ),
+        # Both lines have no alphanumeric
+        (
+            """
+            !!!
+            ???
+            1234 AB Amsterdam
+            """,
+            False,
+        ),
+        # Fewer than 2 normalised lines — early return False
+        ("", False),
+    ],
+)
+def test_has_alphanumeric_character_in_address_lines_1_and_2(address, expected):
+    assert PostalAddress(address).has_alphanumeric_character_in_address_lines_1_and_2 is expected
+
+
+# -----------------------------------------------------
 # INVALID CHARACTERS
 # -----------------------------------------------------
 

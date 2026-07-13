@@ -322,6 +322,12 @@ class PostalAddress:
         )
 
     @property
+    def has_alphanumeric_character_in_address_lines_1_and_2(self):
+        if len(self.normalised_lines) < 2:
+            return False
+        return all(re.search(r"[a-zA-Z0-9]", line) for line in self.normalised_lines[:2])
+
+    @property
     def has_valid_postcode(self):
         return self.postcode is not None
 

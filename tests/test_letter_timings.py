@@ -1,7 +1,6 @@
 from datetime import UTC, datetime
 
 import pytest
-import pytz
 from freezegun import freeze_time
 
 from notifications_utils.letter_timings import (
@@ -17,6 +16,7 @@ from notifications_utils.letter_timings import (
     is_royal_mail_working_day_first_class,
     letter_can_be_cancelled,
 )
+from notifications_utils.timezones import local_timezone
 
 
 @pytest.mark.skip(reason="[NOTIFYNL] Dutch postal address implementation - now on test_nl_letter_timmings.py")
@@ -282,7 +282,7 @@ def test_get_estimated_delivery_date_for_letter(
 ):
     # remove the day string from the upload_time, which is purely informational
 
-    format_dt = lambda x: x.astimezone(pytz.timezone("Europe/London")).strftime("%A %Y-%m-%d %H:%M")  # noqa
+    format_dt = lambda x: x.astimezone(local_timezone).strftime("%A %Y-%m-%d %H:%M")  # noqa
 
     upload_time = upload_time.split(" ", 1)[1]
 

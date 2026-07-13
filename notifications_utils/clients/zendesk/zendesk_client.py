@@ -5,9 +5,10 @@ import os
 import typing
 from urllib.parse import urlencode
 
-import pytz
 import requests
 from flask import current_app
+
+from notifications_utils.timezones import local_timezone
 
 
 class ZendeskError(Exception):
@@ -77,16 +78,23 @@ class ZendeskClient:
         if response.status_code != 201:
             if response.status_code == 422 and self._is_user_suspended(response.json()):
                 error_message = response.json()["details"]
-                current_app.logger.warning("Zendesk create ticket failed because user is suspended '%s'", error_message)
+                current_app.logger.warning("Zendesk create ticket failed because user is suspended: %r", error_message)
                 return
             current_app.logger.error(
-                "Zendesk create ticket request failed with %s '%s'", response.status_code, response.json()
+                "Zendesk create ticket request failed with %s: %r",
+                response.status_code,
+                response.json(),
+                extra={"status_code": response.status_code},
             )
             raise ZendeskError(response)
 
         ticket_id = response.json()["ticket"]["id"]
 
-        current_app.logger.info("Zendesk create ticket %s succeeded", ticket_id)
+        current_app.logger.info(
+            "Zendesk create ticket %s succeeded",
+            ticket_id,
+            extra={"zendesk_ticket_id": ticket_id, "zendesk_operation": "create"},
+        )
 
         return ticket_id
 
@@ -108,13 +116,18 @@ class ZendeskClient:
 
         if response.status_code != 201:
             current_app.logger.error(
-                "Zendesk upload attachment request failed with %s '%s'", response.status_code, response.json()
+                "Zendesk upload attachment request failed with %s: %r",
+                response.status_code,
+                response.json(),
+                extra={"status_code": response.status_code},
             )
             raise ZendeskError(response)
 
         upload_token = response.json()["upload"]["token"]
 
-        current_app.logger.info("Zendesk upload attachment `%s` succeeded", attachment.filename)
+        current_app.logger.info(
+            "Zendesk upload attachment %r succeeded", attachment.filename, extra={"file_name": attachment.filename}
+        )
 
         return upload_token
 
@@ -153,13 +166,20 @@ class ZendeskClient:
 
         if response.status_code != 200:
             current_app.logger.error(
-                "Zendesk update ticket request failed with %s '%s'", response.status_code, response.text
+                "Zendesk update ticket request failed with %s: %r",
+                response.status_code,
+                response.text,
+                extra={"status_code": response.status_code},
             )
             raise ZendeskError(response)
 
         ticket_id = response.json()["ticket"]["id"]
 
-        current_app.logger.info("Zendesk update ticket %s succeeded", ticket_id)
+        current_app.logger.info(
+            "Zendesk update ticket %s succeeded",
+            ticket_id,
+            extra={"zendesk_ticket_id": ticket_id, "zendesk_operation": "update"},
+        )
 
 
 class NotifySupportTicket:
@@ -199,6 +219,7 @@ class NotifySupportTicket:
         email_ccs=None,
         message_as_html=False,
         user_created_at=None,
+        custom_topics: list[dict] | None = None,
     ):
         self.subject = subject
         self.message = message
@@ -215,6 +236,7 @@ class NotifySupportTicket:
         self.email_ccs = email_ccs
         self.message_as_html = message_as_html
         self.user_created_at = user_created_at
+        self.custom_topics = custom_topics
 
     @property
     def request_data(self):
@@ -250,7 +272,7 @@ class NotifySupportTicket:
         with the Zendesk calendar picker
         """
         if created_at_datetime:
-            user_created_at_as_london_datetime = created_at_datetime.astimezone(pytz.timezone("Europe/London"))
+            user_created_at_as_london_datetime = created_at_datetime.astimezone(local_timezone)
 
             formatted_date = user_created_at_as_london_datetime.strftime("%Y-%m-%d")
 
@@ -274,5 +296,8 @@ class NotifySupportTicket:
         if self.notify_ticket_type:
             # Notify Responder field
             custom_fields.append({"id": "1900000744994", "value": self.notify_ticket_type.value})
+
+        if self.custom_topics:
+            custom_fields = custom_fields + self.custom_topics
 
         return custom_fields

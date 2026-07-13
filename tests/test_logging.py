@@ -178,7 +178,7 @@ def test_app_request_logs_level_by_status_code(
     assert (
         mock.call(
             expected_after_level,
-            "%(method)s %(url)s %(status)s took %(request_time)ss",
+            "%(method)s %(url)s %(status)s took %(request_time).4gs",
             {
                 "url": "http://localhost/",
                 "host": "localhost",
@@ -242,7 +242,7 @@ def test_app_request_logs_level_by_status_code(
     assert (
         mock.call(
             expected_after_level,
-            "Streaming response for %(method)s %(url)s %(status)s closed after %(request_time)ss",
+            "Streaming response for %(method)s %(url)s %(status)s closed after %(request_time).4gs",
             {
                 "url": "http://localhost/",
                 "host": "localhost",
@@ -258,7 +258,7 @@ def test_app_request_logs_level_by_status_code(
                 "request_id": "feedface" if with_request_helper else None,
                 "span_id": "abadcafe" if with_request_helper else None,
                 "service_id": None,
-                "user_id": None,
+                "current_user_id": None,
                 "status": status_code,
                 "request_time": RestrictedAny(lambda value: isinstance(value, float) and 0.1 <= value),
                 "request_cpu_time": RestrictedAny(lambda value: isinstance(value, float)),
@@ -281,7 +281,7 @@ def test_app_request_logs_level_by_status_code(
                 "request_id": "feedface" if with_request_helper else None,
                 "span_id": "abadcafe" if with_request_helper else None,
                 "service_id": None,
-                "user_id": None,
+                "current_user_id": None,
                 "status": status_code,
                 "request_time": RestrictedAny(lambda value: isinstance(value, float) and 0.1 <= value),
                 "request_cpu_time": RestrictedAny(lambda value: isinstance(value, float)),
@@ -348,7 +348,7 @@ def test_app_request_logs_responses_on_exception(app_with_mocked_logger):
     assert (
         mock.call(
             builtin_logging.WARNING,
-            "%(method)s %(url)s %(status)s took %(request_time)ss",
+            "%(method)s %(url)s %(status)s took %(request_time).4gs",
             {
                 "url": "http://localhost/",
                 "method": "GET",
@@ -421,7 +421,7 @@ def test_app_request_logs_response_on_status_200(app_with_mocked_logger, stream_
     assert (
         mock.call(
             builtin_logging.DEBUG,
-            "%(method)s %(url)s %(status)s took %(request_time)ss",
+            "%(method)s %(url)s %(status)s took %(request_time).4gs",
             {
                 "url": "http://localhost/_status",
                 "method": "GET",
@@ -467,7 +467,7 @@ def test_app_request_logs_response_on_status_200(app_with_mocked_logger, stream_
     assert (
         mock.call(
             builtin_logging.DEBUG,
-            "%(method)s %(url)s %(status)s took %(request_time)ss",
+            "%(method)s %(url)s %(status)s took %(request_time).4gs",
             {
                 "url": "http://localhost/metrics",
                 "method": "GET",
@@ -514,7 +514,7 @@ def test_app_request_logs_response_on_status_200(app_with_mocked_logger, stream_
     assert (
         mock.call(
             builtin_logging.WARNING,
-            "%(method)s %(url)s %(status)s took %(request_time)ss",
+            "%(method)s %(url)s %(status)s took %(request_time).4gs",
             {
                 "url": "http://localhost/_status",
                 "method": "GET",
@@ -605,7 +605,7 @@ def test_app_request_logs_responses_on_unknown_route(app_with_mocked_logger):
     assert (
         mock.call(
             builtin_logging.INFO,
-            "%(method)s %(url)s %(status)s took %(request_time)ss",
+            "%(method)s %(url)s %(status)s took %(request_time).4gs",
             {
                 "url": "http://localhost/foo",
                 "method": "GET",
@@ -703,7 +703,7 @@ def test_app_request_logs_responses_on_post(app_with_mocked_logger, stream_respo
     assert (
         mock.call(
             builtin_logging.INFO,
-            "%(method)s %(url)s %(status)s took %(request_time)ss",
+            "%(method)s %(url)s %(status)s took %(request_time).4gs",
             {
                 "url": "http://localhost/post",
                 "method": "POST",
@@ -761,7 +761,7 @@ def test_app_request_logs_responses_on_post(app_with_mocked_logger, stream_respo
     assert (
         mock.call(
             builtin_logging.INFO,
-            "Streaming response for %(method)s %(url)s %(status)s closed after %(request_time)ss",
+            "Streaming response for %(method)s %(url)s %(status)s closed after %(request_time).4gs",
             {
                 "url": "http://localhost/post",
                 "host": "localhost",
@@ -777,7 +777,7 @@ def test_app_request_logs_responses_on_post(app_with_mocked_logger, stream_respo
                 "request_id": None,
                 "span_id": None,
                 "service_id": None,
-                "user_id": None,
+                "current_user_id": None,
                 "status": 200,
                 "request_time": RestrictedAny(lambda value: isinstance(value, float)),
                 "request_cpu_time": RestrictedAny(lambda value: isinstance(value, float)),
@@ -798,7 +798,7 @@ def test_app_request_logs_responses_on_post(app_with_mocked_logger, stream_respo
                 "request_id": None,
                 "span_id": None,
                 "service_id": None,
-                "user_id": None,
+                "current_user_id": None,
                 "status": 200,
                 "request_time": RestrictedAny(lambda value: isinstance(value, float)),
                 "request_cpu_time": RestrictedAny(lambda value: isinstance(value, float)),
@@ -870,7 +870,7 @@ def test_app_request_logs_responses_over_max_content(app_with_mocked_logger):
     assert (
         mock.call(
             builtin_logging.INFO,
-            "%(method)s %(url)s %(status)s took %(request_time)ss",
+            "%(method)s %(url)s %(status)s took %(request_time).4gs",
             {
                 "url": "http://localhost/post",
                 "method": "POST",

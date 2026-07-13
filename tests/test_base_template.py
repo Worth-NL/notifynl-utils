@@ -1,5 +1,3 @@
-from unittest.mock import patch
-
 import pytest
 
 from notifications_utils.template import SubjectMixin, Template
@@ -95,9 +93,12 @@ def test_random_variable_retrieve():
     assert template.get_raw("missing") is None
 
 
-def test_compare_template():
-    with patch("notifications_utils.template_change.TemplateChange.__init__", return_value=None) as mocked:
-        old_template = ConcreteTemplate({"content": "faked"})
-        new_template = ConcreteTemplate({"content": "faked"})
-        old_template.compare_to(new_template)
-        mocked.assert_called_once_with(old_template, new_template)
+def test__template_property_defined_early_enough():
+    class Custom(ConcreteTemplate):
+        @property
+        def placeholders(self):
+            # This will raise if self._template is not yet defined
+            if self._template:
+                return super().placeholders
+
+    assert Custom({"content": "foo"}, {"foo": "bar"}).placeholders == {}
