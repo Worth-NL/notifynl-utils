@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 101.2.0
+
+* Added `Encryption` client (Fernet, via `cryptography`) for fields that need genuine
+  confidentiality -- unlike the existing `Signing` client, which only signs (its
+  docstring already says it provides no confidentiality: signed values are
+  recoverable by anyone via bare base64 decoding, no secret key needed).
+
 ## 115.0.2
 
 * Make date printed on templated letters aware of British Summer Time
