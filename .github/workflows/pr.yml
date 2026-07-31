@@ -64,6 +64,8 @@ jobs:
         run: uv pip install -r requirements_for_test.txt
 
       - uses: astral-sh/ruff-action@v3
+        with:
+          version-file: requirements_for_test.txt
 
       - name: Get latest release
         id: release
