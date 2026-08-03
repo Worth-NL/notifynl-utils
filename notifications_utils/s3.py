@@ -138,3 +138,69 @@ def s3_multipart_upload_abort(bucket_name, filename, upload_id):
             extra={"s3_key": filename, "s3_bucket": bucket_name, "upload_id": upload_id},
         )
         raise e
+
+
+#
+# NotifyNL
+#
+def s3_download_all_files_from_folder(bucket_name, folder_name):
+    try:
+        s3 = resource("s3")
+        bucket = s3.Bucket(bucket_name)
+
+        if not folder_name.endswith("/"):
+            folder_name += "/"
+
+        files_data = {}
+
+        for obj in bucket.objects.filter(Prefix=folder_name):
+            if obj.key == folder_name:
+                continue
+
+            file_content = obj.get()["Body"].read()
+
+            relative_filename = obj.key[len(folder_name) :]
+            files_data[relative_filename] = file_content
+
+        return files_data
+
+    except botocore.exceptions.ClientError as error:
+        current_app.logger.error("Unable to download files from folder %s in bucket %s", folder_name, bucket_name)
+        raise S3ObjectNotFound(error.response, error.operation_name) from error
+
+
+def s3_move_folder_between_buckets(source_bucket, dest_bucket, folder_name, dest_folder_name=None):
+    try:
+        s3 = resource("s3")
+        s3_client = client("s3")
+
+        if not folder_name.endswith("/"):
+            folder_name += "/"
+
+        if dest_folder_name is None:
+            dest_folder_name = folder_name
+        elif not dest_folder_name.endswith("/"):
+            dest_folder_name += "/"
+
+        source_bucket_obj = s3.Bucket(source_bucket)
+
+        objects_to_move = []
+        for obj in source_bucket_obj.objects.filter(Prefix=folder_name):
+            if obj.key == folder_name:
+                continue
+            objects_to_move.append(obj.key)
+
+        for obj_key in objects_to_move:
+            dest_key = dest_folder_name + obj_key[len(folder_name) :]
+
+            copy_source = {"Bucket": source_bucket, "Key": obj_key}
+
+            s3_client.copy_object(CopySource=copy_source, Bucket=dest_bucket, Key=dest_key)
+
+            s3.Object(source_bucket, obj_key).delete()
+
+    except botocore.exceptions.ClientError as error:
+        current_app.logger.error(
+            "Unable to move folder %s from bucket %s to bucket %s", folder_name, source_bucket, dest_bucket
+        )
+        raise S3ObjectNotFound(error.response, error.operation_name) from error
