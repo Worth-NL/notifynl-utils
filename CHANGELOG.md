@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## 101.2.1
+
+* Added a `letter_address_placement` constructor parameter (`"50mm"`/`"60mm"`, default
+  `"50mm"`) to `LetterPreviewTemplate`/`LetterPrintTemplate`, driving the existing
+  `.pingen` envelope-window CSS offset in `letter_pdf_nl` directly -- previously that CSS
+  hook was wired to `values["extras"]["sender_organisation"]`, a mechanism nothing in
+  production ever actually populated, and which is unsafe to populate partially since
+  `letter_pdf_nl`'s templates use a `StrictUndefined` Jinja environment (any `extras`
+  dict must supply every `extras.*` key referenced anywhere in the templates, or
+  rendering raises). The new parameter is independent of `extras` entirely, so it's safe
+  regardless of whether personalisation data includes an `extras` payload.
+* Fixed `letter_pdf_nl`'s `rand-info` block (side-panel with "Uw kenmerk"/"Ons kenmerk"/
+  contactpersoon) not applying the address-placement CSS class at all, unlike the
+  `recipient-address`/`dienstcode` blocks -- it silently stayed at the 50mm envelope-window
+  offset even when `letter_address_placement` is `"60mm"`.
+
 ## 101.2.0
 
 * Added `Encryption` client (Fernet, via `cryptography`) for fields that need genuine

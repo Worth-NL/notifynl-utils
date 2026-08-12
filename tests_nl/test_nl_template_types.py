@@ -46,3 +46,77 @@ def test_nested_lists_in_letter_markup():
         "</ul></li>\n"
         "</ol>"
     ) in template_content
+
+
+def _extras(**overrides):
+    # `letter_pdf_nl`'s jinja templates use a StrictUndefined environment, so every
+    # `extras.*` key referenced anywhere in the templates must be present (even if falsy)
+    # whenever an `extras` dict is supplied at all.
+    extras = {
+        "aantal_bijlagen": None,
+        "afdeling": None,
+        "classificatie": None,
+        "contactpersoon": None,
+        "dienst_code": None,
+        "dienst_naam": None,
+        "emailadres": None,
+        "footer_links_eerste_pagina": None,
+        "footer_midden_eerste_pagina": None,
+        "footer_rechts_eerste_pagina": None,
+        "handtekening": None,
+        "header_vanaf_tweede_pagina": None,
+        "ondertekening": None,
+        "ons_kenmerk": None,
+        "retour_adres": None,
+        "secundaire_afzender": None,
+        "telefoonnummer": None,
+        "uw_brief_van": None,
+        "uw_kenmerk": None,
+    }
+    extras.update(overrides)
+    return extras
+
+
+@pytest.mark.parametrize("letter_address_placement", ["50mm", "60mm", None])
+def test_letter_address_placement_recipient_address_class_is_independent_of_extras(letter_address_placement):
+    # `recipient-address` renders unconditionally, with no `extras` supplied at all - the
+    # address-placement CSS class must never depend on `extras` being present.
+    template_content = str(
+        LetterPreviewTemplate(
+            {"content": "content", "subject": "subject", "template_type": "letter"},
+            {},
+            letter_address_placement=letter_address_placement,
+        )
+    )
+
+    expected_class = "pingen" if letter_address_placement == "60mm" else ""
+    assert f'class="recipient-address align-with-envelope-window {expected_class}">' in template_content
+
+
+def test_letter_address_placement_pingen_class_applied_to_all_envelope_window_elements():
+    template_content = str(
+        LetterPreviewTemplate(
+            {"content": "content", "subject": "subject", "template_type": "letter"},
+            {"extras": _extras(dienst_code="1234")},
+            letter_address_placement="60mm",
+        )
+    )
+
+    assert 'class="dienstcode align-with-envelope-window pingen ' in template_content
+    assert 'class="recipient-address align-with-envelope-window pingen">' in template_content
+    assert 'class="rand-info align-with-envelope-window pingen">' in template_content
+
+
+def test_letter_address_placement_pingen_class_absent_at_default_50mm():
+    # `.pingen` is always present as a CSS selector in the rendered <style> block -
+    # what matters is that no element's `class` attribute actually carries it.
+    template_content = str(
+        LetterPreviewTemplate(
+            {"content": "content", "subject": "subject", "template_type": "letter"},
+            {"extras": _extras(dienst_code="1234")},
+        )
+    )
+
+    assert 'class="dienstcode align-with-envelope-window  ' in template_content
+    assert 'class="recipient-address align-with-envelope-window ">' in template_content
+    assert 'class="rand-info align-with-envelope-window ">' in template_content
