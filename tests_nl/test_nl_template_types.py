@@ -77,11 +77,28 @@ def _extras(**overrides):
     return extras
 
 
-def test_pingen_address_placement_class_applied_to_all_envelope_window_elements():
+@pytest.mark.parametrize("letter_address_placement", ["50mm", "60mm", None])
+def test_letter_address_placement_recipient_address_class_is_independent_of_extras(letter_address_placement):
+    # `recipient-address` renders unconditionally, with no `extras` supplied at all - the
+    # address-placement CSS class must never depend on `extras` being present.
     template_content = str(
         LetterPreviewTemplate(
             {"content": "content", "subject": "subject", "template_type": "letter"},
-            {"extras": _extras(sender_organisation="pingen", dienst_code="1234")},
+            {},
+            letter_address_placement=letter_address_placement,
+        )
+    )
+
+    expected_class = "pingen" if letter_address_placement == "60mm" else ""
+    assert f'class="recipient-address align-with-envelope-window {expected_class}">' in template_content
+
+
+def test_letter_address_placement_pingen_class_applied_to_all_envelope_window_elements():
+    template_content = str(
+        LetterPreviewTemplate(
+            {"content": "content", "subject": "subject", "template_type": "letter"},
+            {"extras": _extras(dienst_code="1234")},
+            letter_address_placement="60mm",
         )
     )
 
@@ -90,10 +107,9 @@ def test_pingen_address_placement_class_applied_to_all_envelope_window_elements(
     assert 'class="rand-info align-with-envelope-window pingen">' in template_content
 
 
-def test_pingen_address_placement_class_absent_by_default():
+def test_letter_address_placement_pingen_class_absent_at_default_50mm():
     # `.pingen` is always present as a CSS selector in the rendered <style> block -
-    # what matters is that no element's `class` attribute actually carries it. With no
-    # `sender_organisation` supplied, `BaseLetterTemplate._extras` defaults it to "custom".
+    # what matters is that no element's `class` attribute actually carries it.
     template_content = str(
         LetterPreviewTemplate(
             {"content": "content", "subject": "subject", "template_type": "letter"},
@@ -101,6 +117,6 @@ def test_pingen_address_placement_class_absent_by_default():
         )
     )
 
-    assert 'class="dienstcode align-with-envelope-window custom ' in template_content
-    assert 'class="recipient-address align-with-envelope-window custom">' in template_content
-    assert 'class="rand-info align-with-envelope-window custom">' in template_content
+    assert 'class="dienstcode align-with-envelope-window  ' in template_content
+    assert 'class="recipient-address align-with-envelope-window ">' in template_content
+    assert 'class="rand-info align-with-envelope-window ">' in template_content

@@ -590,6 +590,7 @@ class BaseLetterTemplate(SubjectMixin, Template):
         date: datetime | None = None,
         language="english",
         includes_first_page: bool = True,
+        letter_address_placement: str = "50mm",
     ):
         self.contact_block = (contact_block or "").strip()
         super().__init__(
@@ -599,6 +600,7 @@ class BaseLetterTemplate(SubjectMixin, Template):
         self.logo_file_name = logo_file_name
         self.date = date
         self.language = language
+        self.letter_address_placement = letter_address_placement
         if language == "english":
             self.content = template["content"]
         else:
@@ -731,6 +733,7 @@ class LetterPreviewTemplate(BaseLetterTemplate):
             "language": self.language,
             "includes_first_page": self.includes_first_page,
             "extras": self._extras,
+            "letter_address_placement": self.letter_address_placement,
         }
 
     def __str__(self):
@@ -751,6 +754,7 @@ class LetterPrintTemplate(LetterPreviewTemplate):
         date=None,
         language="english",
         includes_first_page: bool = True,
+        letter_address_placement: str = "50mm",
     ):
         super().__init__(
             template,
@@ -761,6 +765,7 @@ class LetterPrintTemplate(LetterPreviewTemplate):
             redact_missing_personalisation=redact_missing_personalisation,
             date=date,
             language=language,
+            letter_address_placement=letter_address_placement,
         )
         self.includes_first_page = includes_first_page
 
