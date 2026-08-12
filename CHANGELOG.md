@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 101.2.1
+
+* Fix `letter_pdf_nl`'s `rand-info` block (side-panel with "Uw kenmerk"/"Ons kenmerk"/
+  contactpersoon) not applying `extras.sender_organisation` as a CSS class, unlike the
+  `recipient-address`/`dienstcode` blocks -- it silently stayed at the 50mm envelope-window
+  offset even when `sender_organisation` is `"pingen"` (60mm). Needed so a per-service
+  letter address-placement setting can consistently shift all three elements together.
+
 ## 101.2.0
 
 * Added `Encryption` client (Fernet, via `cryptography`) for fields that need genuine
