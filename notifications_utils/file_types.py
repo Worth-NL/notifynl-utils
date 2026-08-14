@@ -38,3 +38,28 @@ def format_file_type(extension):
     for ext, _mime, pretty in EXTENSIONS_MIMETYPES_AND_PRETTY_NAMES:
         if extension.lower() == ext:
             return pretty
+
+
+################
+### NotifyNL ###
+################
+EXTENSIONS_AND_PRETTY_NAMES_NL = (
+    ("pdf", "PDF"),
+    ("csv", "CSV-bestand"),
+    ("txt", "tekstbestand"),
+    ("json", "JSON-bestand"),
+    ("doc", "Microsoft Word-document"),
+    ("docx", "Microsoft Word-document"),
+    ("xlsx", "Microsoft Excel-spreadsheet"),
+    ("odt", "tekstbestand"),
+    ("rtf", "tekstbestand"),
+    ("jpg", "JPEG-bestand"),
+    ("jpeg", "JPEG-bestand"),
+    ("png", "PNG-bestand"),
+)
+
+
+def format_file_type_nl(extension):
+    for ext, pretty in EXTENSIONS_AND_PRETTY_NAMES_NL:
+        if extension.lower() == ext:
+            return pretty
