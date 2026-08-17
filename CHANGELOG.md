@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 101.2.3
+
+* Raised the `cryptography` floor from `>=48.0.1` to `>=50.0.0`. The only `cryptography`
+  API this package (and its consumers) actually use is `cryptography.fernet.Fernet`
+  (`clients/encryption/encryption_client.py`, `url_safe_token.py`), which is untouched by
+  the 49->50 changelog -- 50.0.0 has no backwards-incompatible changes at all, only a
+  Diffie-Hellman deprecation and stricter X.509/OCSP/CRL parsing that this package never
+  exercises. No known consumer dependency caps `cryptography` below 50 (`fido2==2.2.1`,
+  the package that previously blocked a jump past 44, allows up to `<52`).
+
 ## 101.2.1
 
 * Added a `letter_address_placement` constructor parameter (`"50mm"`/`"60mm"`, default
