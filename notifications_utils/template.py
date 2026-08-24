@@ -590,7 +590,7 @@ class BaseLetterTemplate(SubjectMixin, Template):
         date: datetime | None = None,
         language="english",
         includes_first_page: bool = True,
-        letter_address_placement: str = "50mm",
+        letter_address_placement: str = "60mm",
     ):
         self.contact_block = (contact_block or "").strip()
         super().__init__(
@@ -754,7 +754,7 @@ class LetterPrintTemplate(LetterPreviewTemplate):
         date=None,
         language="english",
         includes_first_page: bool = True,
-        letter_address_placement: str = "50mm",
+        letter_address_placement: str = "60mm",
     ):
         super().__init__(
             template,
