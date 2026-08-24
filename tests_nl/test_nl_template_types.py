@@ -107,9 +107,9 @@ def test_letter_address_placement_pingen_class_applied_to_all_envelope_window_el
     assert 'class="rand-info align-with-envelope-window pingen">' in template_content
 
 
-def test_letter_address_placement_pingen_class_absent_at_default_50mm():
-    # `.pingen` is always present as a CSS selector in the rendered <style> block -
-    # what matters is that no element's `class` attribute actually carries it.
+def test_letter_address_placement_pingen_class_present_at_default_60mm():
+    # letter_address_placement now defaults to "60mm" (Pingen) when omitted entirely,
+    # matching Service.letter_address_placement's own DB default.
     template_content = str(
         LetterPreviewTemplate(
             {"content": "content", "subject": "subject", "template_type": "letter"},
@@ -117,6 +117,6 @@ def test_letter_address_placement_pingen_class_absent_at_default_50mm():
         )
     )
 
-    assert 'class="dienstcode align-with-envelope-window  ' in template_content
-    assert 'class="recipient-address align-with-envelope-window ">' in template_content
-    assert 'class="rand-info align-with-envelope-window ">' in template_content
+    assert 'class="dienstcode align-with-envelope-window pingen ' in template_content
+    assert 'class="recipient-address align-with-envelope-window pingen">' in template_content
+    assert 'class="rand-info align-with-envelope-window pingen">' in template_content
