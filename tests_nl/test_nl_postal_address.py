@@ -142,6 +142,87 @@ def test_city_detected_in_next_line_to_postcode():
     assert pa.valid is True
 
 
+def test_retouradres_line_is_stripped_and_does_not_affect_valid_address():
+    address = """
+    Retouradres: Postbus 70013, 3000 KR ROTTERDAM
+    Persoonlijk
+    Coolsingel 40
+    3011 AD
+    Rotterdam
+    """
+    pa = PostalAddress(raw_address=address)
+
+    assert pa.postcode == "3011 AD"
+    assert pa.city == "Rotterdam"
+    assert pa.normalised_lines == ["Persoonlijk", "Coolsingel 40", "3011 AD  ROTTERDAM"]
+    assert pa.has_non_recipient_address_line is True
+    assert pa.valid is False
+
+
+def test_retouradres_line_does_not_mask_missing_city():
+    address = """
+    Retouradres: Postbus 70013, 3000 KR ROTTERDAM
+    Persoonlijk
+    Coolsingel 40
+    3011 AD
+    """
+    pa = PostalAddress(raw_address=address)
+
+    assert pa.postcode == "3011 AD"
+    assert pa.city is None
+    assert pa.valid is False
+
+
+def test_retouradres_line_does_not_mask_missing_postcode():
+    address = """
+    Retouradres: Postbus 70013, 3000 KR ROTTERDAM
+    Persoonlijk
+    Coolsingel 40
+    """
+    pa = PostalAddress(raw_address=address)
+
+    assert pa.postcode is None
+    assert pa.city is None
+    assert pa.valid is False
+
+
+@pytest.mark.parametrize(
+    "retouradres_line",
+    [
+        "Retouradres: Postbus 70013, 3000 KR ROTTERDAM",
+        "  Retouradres: Postbus 70013, 3000 KR ROTTERDAM",
+        "RETOURADRES: Postbus 70013, 3000 KR ROTTERDAM",
+        "retouradres: Postbus 70013, 3000 KR ROTTERDAM",
+    ],
+)
+def test_retouradres_line_stripped_case_insensitively_and_with_leading_whitespace(retouradres_line):
+    address = f"{retouradres_line}\nPersoonlijk\nCoolsingel 40\n3011 AD\nRotterdam"
+    pa = PostalAddress(raw_address=address)
+
+    assert pa.has_non_recipient_address_line is True
+    assert pa.city == "Rotterdam"
+
+
+def test_address_without_retouradres_line_is_unaffected():
+    address = "Persoonlijk\nCoolsingel 40\n3011 AD\nRotterdam"
+    pa = PostalAddress(raw_address=address)
+
+    assert pa.has_non_recipient_address_line is False
+    assert pa.valid is True
+
+
+def test_from_personalisation_with_retouradres_in_address_line_is_rejected():
+    personalisation = {
+        "address_line_1": "Retouradres: Postbus 70013, 3000 KR ROTTERDAM",
+        "address_line_2": "Coolsingel 40",
+        "postcode": "3011 AD Rotterdam",
+    }
+    pa = PostalAddress.from_personalisation(personalisation)
+
+    assert pa.has_non_recipient_address_line is True
+    assert pa.valid is False
+
+
 def test_international_address_with_country_last_line():
     address = """
     Baker Street 221B
