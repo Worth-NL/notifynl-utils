@@ -67,7 +67,6 @@ def _extras(**overrides):
         "header_vanaf_tweede_pagina": None,
         "ondertekening": None,
         "ons_kenmerk": None,
-        "retour_adres": None,
         "secundaire_afzender": None,
         "telefoonnummer": None,
         "uw_brief_van": None,
@@ -91,6 +90,35 @@ def test_letter_address_placement_recipient_address_class_is_independent_of_extr
 
     expected_class = "pingen" if letter_address_placement == "60mm" else ""
     assert f'class="recipient-address align-with-envelope-window {expected_class}">' in template_content
+
+
+def test_retouradres_line_renders_from_contact_block():
+    template_content = str(
+        LetterPreviewTemplate(
+            {"content": "content", "subject": "subject", "template_type": "letter"},
+            {},
+            contact_block="Gemeente Rotterdam\nPostbus 70013\n3000 KR Rotterdam",
+        )
+    )
+
+    assert '<div class="return-address rand-info-subkop">' in template_content
+    assert "Retouradres: Gemeente Rotterdam" in template_content
+    assert "Postbus 70013" in template_content
+    assert "3000 KR Rotterdam" in template_content
+
+
+@pytest.mark.parametrize("contact_block", [None, ""])
+def test_retouradres_line_absent_without_contact_block(contact_block):
+    template_content = str(
+        LetterPreviewTemplate(
+            {"content": "content", "subject": "subject", "template_type": "letter"},
+            {},
+            contact_block=contact_block,
+        )
+    )
+
+    assert "Retouradres:" not in template_content
+    assert '<div class="return-address rand-info-subkop">' not in template_content
 
 
 def test_letter_address_placement_pingen_class_applied_to_all_envelope_window_elements():
