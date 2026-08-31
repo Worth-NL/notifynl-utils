@@ -59,10 +59,10 @@
           <div class="horizontal-position">
             {# Recipient Address (PostNL Window Position) #}
             <div class="recipient-address align-with-envelope-window {{ 'pingen' if letter_address_placement == '60mm' else '' }}">
-              {%- if extras and extras.retour_adres %}
+              {%- if contact_block %}
               {# Return Address (Small, for envelope window) #}
               <div class="return-address rand-info-subkop">
-                Retouradres: {{ extras.retour_adres }}
+                Retouradres: {{ contact_block }}
               </div>
               {%- endif %}
               {%- if extras and extras.classificatie %}
