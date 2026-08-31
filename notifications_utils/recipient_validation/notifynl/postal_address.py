@@ -14,6 +14,10 @@ log = logging.getLogger(__name__)
 country_NL = Country("Netherlands")
 NL_POSTCODE_REGEX = r"\b[1-9][0-9]{3}\s?[A-Z]{2}\b"  # For finding a postcode inside a longer line
 NL_POSTCODE_COMPACT_REGEX = r"[1-9][0-9]{3}[A-Z]{2}"  # For validating a compact, already-normalized string
+# Matches the "Retouradres: ..." return-address line NL letter templates print inside the same
+# envelope window as the recipient's address (see letter_pdf_nl/blocks/_body.jinja2) - it embeds
+# its own postcode+city, which would otherwise get mistaken for the recipient's own.
+RETURN_ADDRESS_LINE_PATTERN = re.compile(r"^\s*retouradres\b", re.IGNORECASE)
 
 address_lines_1_to_5_keys = [
     "address_line_1",
@@ -109,11 +113,13 @@ class PostalAddress:
             raw_address = "\n".join(raw_address)
         self.raw_address = raw_address or ""
 
-        self._lines = [
+        lines = [
             remove_whitespace_before_punctuation(line.rstrip(" ,"))
             for line in get_lines_with_normalised_whitespace(self.raw_address)
             if line.rstrip(" ,")
-        ] or [""]
+        ]
+        self._has_non_recipient_address_line = any(RETURN_ADDRESS_LINE_PATTERN.match(line) for line in lines)
+        self._lines = [line for line in lines if not RETURN_ADDRESS_LINE_PATTERN.match(line)] or [""]
 
         # -----------------------------------------------------
         # BFPO: fully disabled
@@ -340,6 +346,10 @@ class PostalAddress:
         return False
 
     @property
+    def has_non_recipient_address_line(self):
+        return self._has_non_recipient_address_line
+
+    @property
     def has_country_as_last_line(self):
         detected_country = Country(self.last_line)
         if detected_country:
@@ -384,6 +394,7 @@ class PostalAddress:
             and self.has_valid_local_or_international_address
             and not self.has_too_many_lines
             and not self.has_invalid_characters
+            and not self.has_non_recipient_address_line
         )
 
     # ---------------------------------------------------------
