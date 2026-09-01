@@ -19,6 +19,44 @@ NL_POSTCODE_COMPACT_REGEX = r"[1-9][0-9]{3}[A-Z]{2}"  # For validating a compact
 # its own postcode+city, which would otherwise get mistaken for the recipient's own.
 RETURN_ADDRESS_LINE_PATTERN = re.compile(r"^\s*retouradres\b", re.IGNORECASE)
 
+# Matches a standalone "Datum" (date) or "Onderwerp" (subject) label line. Some services'
+# precompiled PDFs print these just below the recipient's address, inside the same OCR window
+# notifynl-template-preview reads to validate a precompiled letter (PrecompiledPostalAddress in
+# notifynl-template-preview/app/precompiled.py) - unstripped, they (and their value line right
+# below) get miscounted as address lines, the same way an un-stripped "Retouradres" line would be
+# (Den Haag SZW letter investigation, 2026-08-31). Anchored end-to-end (`$`) so it only matches a
+# label alone on its own line - "Datum: 11 augustus 2026" on one line is left alone.
+NON_RECIPIENT_LABEL_LINE_PATTERN = re.compile(r"^\s*(datum|onderwerp)\s*:?\s*$", re.IGNORECASE)
+
+
+def _without_non_recipient_lines(lines):
+    """Remove a "Retouradres" line (wherever it appears), and a standalone "Datum"/"Onderwerp"
+    label line together with the line immediately after it (its value), preserving order.
+
+    Must run on the raw, pre-`normalised_lines` order: `normalised_lines` relocates the
+    postcode+city line to the very end of the list, which would make "the line immediately after
+    the label" resolve to the wrong line if this ran after that reordering.
+
+    :return: (filtered_lines, found_non_recipient_line)
+    """
+    filtered = []
+    found_non_recipient_line = False
+    skip_next = False
+    for line in lines:
+        if skip_next:
+            skip_next = False
+            continue
+        if RETURN_ADDRESS_LINE_PATTERN.match(line):
+            found_non_recipient_line = True
+            continue
+        if NON_RECIPIENT_LABEL_LINE_PATTERN.match(line):
+            found_non_recipient_line = True
+            skip_next = True  # also drop the label's value line right below it
+            continue
+        filtered.append(line)
+    return filtered, found_non_recipient_line
+
+
 address_lines_1_to_5_keys = [
     "address_line_1",
     "address_line_2",
@@ -118,8 +156,8 @@ class PostalAddress:
             for line in get_lines_with_normalised_whitespace(self.raw_address)
             if line.rstrip(" ,")
         ]
-        self._has_non_recipient_address_line = any(RETURN_ADDRESS_LINE_PATTERN.match(line) for line in lines)
-        self._lines = [line for line in lines if not RETURN_ADDRESS_LINE_PATTERN.match(line)] or [""]
+        self._lines, self._has_non_recipient_address_line = _without_non_recipient_lines(lines)
+        self._lines = self._lines or [""]
 
         # -----------------------------------------------------
         # BFPO: fully disabled
