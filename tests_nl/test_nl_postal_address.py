@@ -223,6 +223,67 @@ def test_from_personalisation_with_retouradres_in_address_line_is_rejected():
     assert pa.valid is False
 
 
+def test_datum_and_onderwerp_lines_are_stripped_and_do_not_affect_address_content():
+    address = """
+    Persoonlijk
+    Kerkstraat 12
+    2511 AB Den Haag
+    Datum
+    11 augustus 2026
+    Onderwerp
+    Bevestigen intrekken aanvraag bijstandsuitkering
+    """
+    pa = PostalAddress(raw_address=address)
+
+    assert pa.postcode == "2511 AB"
+    assert pa.city == "Den Haag"
+    assert pa.normalised_lines == ["Persoonlijk", "Kerkstraat 12", "2511 AB  DEN HAAG"]
+    assert pa.has_non_recipient_address_line is True
+    assert pa.valid is False
+
+
+@pytest.mark.parametrize(
+    "label_line",
+    ["Datum", "Datum:", "  Datum", "DATUM", "datum:", "Onderwerp", "Onderwerp:", "ONDERWERP:", "onderwerp"],
+)
+def test_datum_and_onderwerp_label_stripped_case_insensitively_and_with_leading_whitespace_or_colon(label_line):
+    address = f"Persoonlijk\nKerkstraat 12\n{label_line}\n11 augustus 2026\n2511 AB\nDen Haag"
+    pa = PostalAddress(raw_address=address)
+
+    assert pa.has_non_recipient_address_line is True
+    assert pa.normalised_lines == ["Persoonlijk", "Kerkstraat 12", "2511 AB  DEN HAAG"]
+
+
+def test_datum_label_value_line_is_removed_not_just_the_label():
+    address = "Persoonlijk\nKerkstraat 12\nDatum\n11 augustus 2026\n2511 AB\nDen Haag"
+    pa = PostalAddress(raw_address=address)
+
+    assert "11 augustus 2026" not in pa.normalised_lines
+    assert pa.normalised_lines == ["Persoonlijk", "Kerkstraat 12", "2511 AB  DEN HAAG"]
+
+
+def test_address_without_datum_or_onderwerp_lines_is_unaffected():
+    address = "Persoonlijk\nKerkstraat 12\n2511 AB\nDen Haag"
+    pa = PostalAddress(raw_address=address)
+
+    assert pa.has_non_recipient_address_line is False
+    assert pa.valid is True
+
+
+def test_from_personalisation_with_onderwerp_label_in_address_line_is_rejected():
+    personalisation = {
+        "address_line_1": "Persoonlijk",
+        "address_line_2": "Kerkstraat 12",
+        "address_line_3": "Onderwerp",
+        "address_line_4": "Bevestigen intrekken aanvraag bijstandsuitkering",
+        "postcode": "2511 AB Den Haag",
+    }
+    pa = PostalAddress.from_personalisation(personalisation)
+
+    assert pa.has_non_recipient_address_line is True
+    assert pa.valid is False
+
+
 def test_international_address_with_country_last_line():
     address = """
     Baker Street 221B
