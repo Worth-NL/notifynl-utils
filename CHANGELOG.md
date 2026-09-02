@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 101.2.8
+
+* `BaseLetterTemplate._contact_block` now always collapses the return address
+  ("Retouradres") onto a single line (non-blank lines joined with `", "`) instead of
+  converting newlines to `<br>` via `nl2br`. The Dutch return address must always print
+  as one line; this also protects the letter preview/PDF against any legacy multi-line
+  `contact_block` data already stored from before notifynl-admin's sender-address field
+  moved from a textarea to a single-line input.
+
 ## 101.2.3
 
 * Raised the `cryptography` floor from `>=48.0.1` to `>=50.0.0`. The only `cryptography`
