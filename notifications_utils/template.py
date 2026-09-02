@@ -572,6 +572,14 @@ class HTMLEmailTemplate(BaseEmailTemplate):
         )
 
 
+def force_single_line_contact_block(value: str) -> str:
+    """Collapse a contact block into a single line.
+
+    The Dutch return address ("Retouradres") must always render on one line.
+    """
+    return ", ".join(line.strip() for line in value.splitlines() if line.strip())
+
+
 class BaseLetterTemplate(SubjectMixin, Template):
     template_type = "letter"
     max_page_count = LETTER_MAX_PAGE_COUNT
@@ -670,7 +678,7 @@ class BaseLetterTemplate(SubjectMixin, Template):
                 )
             )
             .then(remove_whitespace_before_punctuation)
-            .then(nl2br)
+            .then(force_single_line_contact_block)
         )
 
     @property

@@ -709,7 +709,7 @@ def test_phone_templates_normalise_whitespace(template_class):
     [
         (None, ""),
         ("", ""),
-        (
+        pytest.param(
             """
             The Pension Service
             Mail Handling Site A
@@ -729,6 +729,10 @@ def test_phone_templates_normalise_whitespace(template_class):
                 "Email: fpc.customercare@dwp.gsi.gov.uk<br>"
                 "Monday - Friday  8am - 6pm<br>"
                 "www.gov.uk"
+            ),
+            marks=pytest.mark.skip(
+                reason="[NOTIFYNL] contact_block now always renders as a single line "
+                "- see tests_nl/test_nl_template_types.py"
             ),
         ),
     ],
