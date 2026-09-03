@@ -101,10 +101,12 @@ def test_retouradres_line_renders_from_contact_block():
         )
     )
 
-    assert '<div class="return-address rand-info-subkop">' in template_content
-    assert "Retouradres: Gemeente Rotterdam" in template_content
-    assert "Postbus 70013" in template_content
-    assert "3000 KR Rotterdam" in template_content
+    return_address_html = (
+        template_content.split('<div class="return-address rand-info-subkop">')[1].split("</div>")[0].strip()
+    )
+
+    assert "<br" not in return_address_html
+    assert return_address_html == "Retouradres: Gemeente Rotterdam, Postbus 70013, 3000 KR Rotterdam"
 
 
 @pytest.mark.parametrize("contact_block", [None, ""])
