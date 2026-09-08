@@ -35,6 +35,7 @@ dependencies = [
     "smartypants>=2.0.1",
     "statsd>=4.0.1",
     "opentelemetry-api>=1.40.0",
+    "pyroscope-io>=1.2.1",
     "requirements-parser",
     # vulnerability patches for transitive deps (flask, gunicorn[eventlet])
     "click>=8.3.3",
