@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## 101.3.0
+
+* Added `notifications_utils.profiling` for Grafana Pyroscope continuous profiling.
+  `configure_pyroscope()` is wired into the existing gunicorn `post_fork` hook
+  (`notifications_utils.gunicorn.defaults`), so every consuming Flask app picks it up
+  automatically once it bumps to this version - no per-app code change needed for the
+  web/gunicorn side. Celery apps additionally need one call to
+  `set_up_profiling_for_celery()` from their `run_celery.py` (mirrors
+  `notifications_utils.logging.celery.set_up_logging`'s existing pattern).
+  Entirely opt-in and safe when unconfigured: a no-op unless `PYROSCOPE_SERVER_ADDRESS`
+  is set, and never raises even if the SDK itself fails, so a misconfigured or briefly
+  unreachable Pyroscope server can never take down app/worker startup. Application name
+  is `PYROSCOPE_APPLICATION_NAME`, falling back to `OTEL_SERVICE_NAME` - deliberately not
+  gated on OTel being enabled, since most processes in this fork don't have
+  `OTEL_SERVICE_NAME` set yet.
+
 ## 101.2.8
 
 * `BaseLetterTemplate._contact_block` now always collapses the return address

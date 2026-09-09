@@ -26,6 +26,10 @@ def post_fork(server, worker):
     for handler in logging.getLogger().handlers:
         handler.setLevel(logging.ERROR)
 
+    from notifications_utils.profiling import configure_pyroscope
+
+    configure_pyroscope()
+
 
 def worker_int(worker):
     worker.log.info("worker pid %s received SIGINT", worker.pid, extra={"process_": worker.pid})
