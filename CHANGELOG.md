@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 101.3.2
+
+* Bumped `mistune` from `3.3.0` to `3.3.3`, fixing CVE-2026-76098 (a HIGH-severity DoS:
+  deeply-nested emphasis markers in markdown input can raise `RecursionError` inside
+  `HTMLRenderer.render_token()`), found via a local `trivy rootfs` scan of this
+  package's own venv rather than the cluster (this library has no deployed image of its
+  own for the trivy-operator to scan). `helpers.parse_link`/`parse_link_href` keep the
+  same shape through 3.3.3 as 3.3.0, so `notifications_utils.markdown`'s monkey-patches
+  needed no changes - the rewrite that would break them only lands in 3.3.4.
+
 ## 101.3.1
 
 * Bumped `mistune` from `<2.0.0` (pinned to 0.8.4) to `==3.3.0`, fixing
