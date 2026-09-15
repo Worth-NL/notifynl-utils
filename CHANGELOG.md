@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## 101.3.1
+
+* Bumped `mistune` from `<2.0.0` (pinned to 0.8.4) to `==3.3.0`, fixing
+  CVE-2026-49851/59922/59925/59928 (no fix exists on the 0.8.x/1.x line - only from
+  3.3.0, a ground-up rewrite of mistune's parser/renderer API). `notifications_utils.markdown`'s
+  letter/email markdown customisation (custom `^` block quotes, `•`/`*`/`-` bullets,
+  no bold/italic/inline-code support, QR-code embedding, personalisation placeholders
+  embedded in link urls) is ported onto mistune 3's `BlockParser`/`InlineParser`/
+  `HTMLRenderer`, with the observable output of `notify_email_markdown`,
+  `notify_plain_text_email_markdown`, `notify_email_preheader_markdown`,
+  `notify_letter_preview_markdown` and `notify_letter_qrcode_validator` unchanged for
+  every case covered by `tests/test_markdown.py` and the letter/email rendering tests in
+  `test_template_types.py`/`tests_nl/test_nl_template_types.py`. `mistune` is
+  exact-pinned rather than left as a floor: the private internals this module patches
+  (mistune has no public extension point for this grammar) already changed shape between
+  3.3.0 and 3.3.4, so bumping past 3.3.0 needs the same manual re-verification, not just
+  a version-range change.
+
 ## 101.3.0
 
 * Added `notifications_utils.profiling` for Grafana Pyroscope continuous profiling.
