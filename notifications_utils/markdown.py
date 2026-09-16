@@ -128,8 +128,13 @@ def _parse_link_href(src, start_pos, block=False):
     if pos >= len(src):
         return None, None
 
-    if src[pos] == "<":
-        return mistune.helpers._parse_angle_link_href(src, pos)
+    # Note: unlike stock mistune, a leading `<` is NOT treated as CommonMark's
+    # angle-bracket href syntax and delegated to `_parse_angle_link_href` - that
+    # scanner stops at the first unescaped `>`, which breaks as soon as the href
+    # itself contains embedded HTML (e.g. a personalisation placeholder's
+    # `<span class='placeholder'>...</span>`, substituted in before markdown ever
+    # parses this content - see the comment on `_next_href_char_action` above).
+    # Every href, angle-prefixed or not, goes through that same tolerant loop.
     if block and src[pos] in mistune.helpers.ASCII_WHITESPACE:
         return None, None
 
