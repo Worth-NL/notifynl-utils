@@ -1,3 +1,4 @@
+import importlib
 import itertools
 import re
 import string
@@ -183,6 +184,36 @@ def _parse_link(src, pos):
 
 mistune.helpers.parse_link_href = _parse_link_href
 mistune.inline_parser.parse_link = _parse_link
+
+
+# mistune 3's core render pipeline strips leading/trailing ASCII whitespace -
+# including plain spaces - off every block's text before inline-parsing it
+# (`text.strip(" \r\n\t\f")`). The newline/tab/form-feed part matters (it's what
+# keeps block-splitting artefacts like a paragraph's trailing "\n" from turning
+# into a spurious extra `<br>` under hard-wrap), but stripping plain spaces is a
+# new-in-mistune-3 side effect mistune 0.8.4 never had, and this content model
+# doesn't want: e.g. `_find_and_sanitise_urls` in notifynl-api can strip a
+# leading url entirely, leaving a genuine leading space; letter/email QR code
+# data can rely on an exact trailing space. Strip the same characters mistune 3
+# does, minus the plain space, so structural whitespace is still normalised but
+# meaningful leading/trailing spaces inside content survive.
+def _iter_render_preserving_block_text_spaces(self, tokens, state):
+    for tok in tokens:
+        if "children" in tok:
+            children = self._iter_render(tok["children"], state)
+            tok["children"] = list(children)
+        elif "text" in tok:
+            text = tok.pop("text")
+            tok["children"] = self.inline(text.strip("\r\n\t\f"), state.env)
+        yield tok
+
+
+# `mistune`'s own __init__.py rebinds the `markdown` attribute on the `mistune`
+# package to a convenience function, shadowing the `mistune.markdown` submodule -
+# so plain attribute access (`mistune.markdown`, even via `import mistune.markdown
+# as x`) resolves to that function, not the submodule, once `mistune` is fully
+# imported. Go via `importlib` to reach the real submodule/class regardless.
+importlib.import_module("mistune.markdown").Markdown._iter_render = _iter_render_preserving_block_text_spaces
 
 
 def _parse_url_link(inline, m, state):
