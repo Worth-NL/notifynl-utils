@@ -1,5 +1,6 @@
 import itertools
 import re
+import string
 from itertools import count
 
 import mistune
@@ -237,6 +238,19 @@ class NotifyInlineParser(mistune.InlineParser):
     # `*`/`_`/`` ` `` are left as literal characters. Strikethrough is a mistune
     # plugin we never enable, so `~~text~~` is already left alone.
     DEFAULT_RULES = tuple(rule for rule in mistune.InlineParser.DEFAULT_RULES if rule not in ("emphasis", "codespan"))
+
+    # mistune 0.8.4's escape rule excluded `<` from its escapable-character set
+    # (while including `>` and everything else) - an accidental quirk, but one
+    # that's already baked into real, previously-delivered notification content
+    # and every existing test expectation: a backslash-escaped `\<` falls through
+    # to plain text (rendered as a literal `\` followed by an HTML-escaped `<`)
+    # rather than being cleanly unescaped like `\>` and other punctuation is.
+    # Reproduced here so this CVE-driven mistune bump doesn't silently change
+    # already-rendered content for this one character.
+    SPECIFICATION = {
+        **mistune.InlineParser.SPECIFICATION,
+        "escape": r"(?:\\[" + re.escape(string.punctuation.replace("<", "")) + "])+",
+    }
 
     def __init__(self, hard_wrap=False):
         super().__init__(hard_wrap=hard_wrap)
