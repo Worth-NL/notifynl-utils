@@ -2,6 +2,7 @@ import logging
 import time
 from contextlib import contextmanager, nullcontext
 from os import getpid
+from time import thread_time_ns
 
 from celery import Celery, Task
 from celery.backends.base import DisabledBackend
@@ -9,7 +10,8 @@ from flask import Flask, current_app, g, request
 from flask.ctx import has_app_context, has_request_context
 from opentelemetry import metrics
 
-from notifications_utils.clients.statsd.statsd_client import StatsdClient
+from notifications_utils.eventlet import greenlet_thread_time_ns  # not that we (currently) use eventlet with celery
+from notifications_utils.logging.formatting import _ns_per_s
 from notifications_utils.semconv import TASK_DURATION_HISTOGRAM_BUCKETS
 
 duration_histogram = metrics.get_meter(__name__).create_histogram(
@@ -19,10 +21,19 @@ duration_histogram = metrics.get_meter(__name__).create_histogram(
     explicit_bucket_boundaries_advisory=TASK_DURATION_HISTOGRAM_BUCKETS,
 )
 
+celery_task_cpu_time_histogram = metrics.get_meter(__name__).create_histogram(
+    "celery.task.cpu_time",
+    unit="s",
+    description="The total python thread_time used by a celery task execution.",
+    explicit_bucket_boundaries_advisory=TASK_DURATION_HISTOGRAM_BUCKETS,
+)
+
 
 class NotifyTask(Task):
     abstract = True
-    start = None
+    start: float
+    start_thread_time_ns: int
+    app: "NotifyCelery"
 
     def __init__(self, *args, **kwargs):
         # custom task-decorator arguments magically get applied as class attributes (!),
@@ -53,9 +64,9 @@ class NotifyTask(Task):
             g.request_id = self.request_id
             yield
 
-    def _record_duration(self, duration: float, status: str) -> None:
-        duration_histogram.record(
-            duration,
+    def _record_histogram(self, histogram: metrics.Histogram, value: float, status: str) -> None:
+        histogram.record(
+            value,
             {
                 "celery.task.name": self.name,
                 "celery.task.status": status,
@@ -67,6 +78,9 @@ class NotifyTask(Task):
         # enables request id tracing for these logs
         with self.app_context():
             elapsed_time = time.monotonic() - self.start
+            elapsed_thread_time = (
+                (greenlet_thread_time_ns() or thread_time_ns()) - self.start_thread_time_ns
+            ) * _ns_per_s
 
             self.app.flask_app.logger.info(
                 "Celery task %s (queue: %s) took %.4f",
@@ -79,22 +93,22 @@ class NotifyTask(Task):
                     "queue_name": self.queue_name,
                     "retry_number": self.request.retries,
                     "duration": elapsed_time,
+                    "celery_task_cpu_time": elapsed_thread_time,
                     # avoid name collision with LogRecord's own `process` attribute
                     "process_": getpid(),
                 },
             )
 
-            self.app.flask_app.statsd_client.timing(
-                f"celery.{self.queue_name}.{self.name}.success",
-                elapsed_time,
-            )
-
-            self._record_duration(elapsed_time, "success")
+            self._record_histogram(duration_histogram, elapsed_time, "success")
+            self._record_histogram(celery_task_cpu_time_histogram, elapsed_thread_time, "success")
 
     def on_retry(self, exc, task_id, args, kwargs, einfo):
         # enables request id tracing for these logs
         with self.app_context():
             elapsed_time = time.monotonic() - self.start
+            elapsed_thread_time = (
+                (greenlet_thread_time_ns() or thread_time_ns()) - self.start_thread_time_ns
+            ) * _ns_per_s
 
             self.app.flask_app.logger.warning(
                 "Celery task %s (queue: %s) failed for retry after %.4f",
@@ -108,22 +122,22 @@ class NotifyTask(Task):
                     "queue_name": self.queue_name,
                     "retry_number": self.request.retries,
                     "duration": elapsed_time,
+                    "celery_task_cpu_time": elapsed_thread_time,
                     # avoid name collision with LogRecord's own `process` attribute
                     "process_": getpid(),
                 },
             )
 
-            self.app.flask_app.statsd_client.timing(
-                f"celery.{self.queue_name}.{self.name}.retry",
-                elapsed_time,
-            )
-
-            self._record_duration(elapsed_time, "retry")
+            self._record_histogram(duration_histogram, elapsed_time, "retry")
+            self._record_histogram(celery_task_cpu_time_histogram, elapsed_thread_time, "retry")
 
     def on_failure(self, exc, task_id, args, kwargs, einfo):
         # enables request id tracing for these logs
         with self.app_context():
             elapsed_time = time.monotonic() - self.start
+            elapsed_thread_time = (
+                (greenlet_thread_time_ns() or thread_time_ns()) - self.start_thread_time_ns
+            ) * _ns_per_s
 
             self.app.flask_app.logger.exception(
                 "Celery task %s (queue: %s) failed after %.4f",
@@ -136,19 +150,20 @@ class NotifyTask(Task):
                     "queue_name": self.queue_name,
                     "retry_number": self.request.retries,
                     "duration": elapsed_time,
+                    "celery_task_cpu_time": elapsed_thread_time,
                     # avoid name collision with LogRecord's own `process` attribute
                     "process_": getpid(),
                 },
             )
 
-            self.app.flask_app.statsd_client.incr(f"celery.{self.queue_name}.{self.name}.failure")
-
-            self._record_duration(elapsed_time, "failure")
+            self._record_histogram(duration_histogram, elapsed_time, "failure")
+            self._record_histogram(celery_task_cpu_time_histogram, elapsed_thread_time, "failure")
 
     def __call__(self, *args, **kwargs):
         # ensure task has flask context to access config, logger, etc
         with self.app_context():
             self.start = time.monotonic()
+            self.start_thread_time_ns = greenlet_thread_time_ns() or thread_time_ns()
 
             if self.request.id is not None:
                 # we're not being called synchronously
@@ -171,7 +186,7 @@ class NotifyTask(Task):
 
 
 class NotifyCelery(Celery):
-    flask_app: Flask | None = None
+    flask_app: Flask
 
     def __init__(self, *args, **kwargs):
         kwargs["task_cls"] = NotifyTask
@@ -180,14 +195,10 @@ class NotifyCelery(Celery):
     def init_app(self, app):
         self.flask_app = app
 
-        # Make sure we have a StatsD client (even if it's just a stub) to avoid errors later on.
-        if not hasattr(app, "statsd_client"):
-            app.statsd_client = StatsdClient()
-
         # Configure Celery app with options from the main app config.
         self.conf.update(app.config["CELERY"])
 
-    def send_task(self, name, args=None, kwargs=None, **other_kwargs):
+    def send_task(self, name, args=None, kwargs=None, *positional_args, **other_kwargs):
         other_kwargs["headers"] = other_kwargs.get("headers") or {}
 
         if has_request_context() and hasattr(request, "request_id"):
@@ -215,11 +226,11 @@ class NotifyCelery(Celery):
         if drop_message_group_id:
             other_kwargs.pop("MessageGroupId", None)
 
-        return super().send_task(name, args, kwargs, **other_kwargs)
+        return super().send_task(name, args, kwargs, *positional_args, **other_kwargs)
 
     def _get_backend(self):
         # We want it to instantly return a DisabledBackend object if result_backend is None without expending
         # resources in scanning for a none existent backend store.
         if self.conf.result_backend is None:
             return DisabledBackend(app=self)
-        return super()._get_backend()
+        return super()._get_backend()  # type: ignore[misc]

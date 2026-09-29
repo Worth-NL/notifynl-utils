@@ -1,4 +1,3 @@
-import numbers
 import uuid
 from time import time
 from types import TracebackType
@@ -6,16 +5,40 @@ from types import TracebackType
 # (`Type` is deprecated in favour of `type` but we need to match the
 # signature of the method we are stubbing)
 from typing import (  # noqa: UP035
+    Any,
+    Self,
     Type,
     final,
+    overload,
 )
 
-from flask import current_app
+from flask import current_app, g, has_app_context
+from flask.app import Flask
 from flask_redis import FlaskRedis
+from redis import Redis
+from redis.commands.core import Script
+from redis.exceptions import ReadOnlyError, ResponseError
+from redis.exceptions import TimeoutError as redis_TimeoutError
 from redis.lock import Lock
 from redis.typing import Number
 
-from notifications_utils.eventlet import EventletTimeout
+from notifications_utils.eventlet import HardEventletTimeout, SoftEventletTimeout
+
+
+@overload
+def prepare_value(val: bytes) -> bytes: ...
+
+
+@overload
+def prepare_value(val: str) -> str: ...
+
+
+@overload
+def prepare_value(val: float) -> float: ...
+
+
+@overload
+def prepare_value(val: uuid.UUID) -> str: ...
 
 
 def prepare_value(val):
@@ -31,7 +54,7 @@ def prepare_value(val):
     # things redis-py natively supports
     if isinstance(
         val,
-        bytes | str | numbers.Number,
+        bytes | str | float | int,
     ):
         return val
     # things we know we can safely cast to string
@@ -41,6 +64,60 @@ def prepare_value(val):
         raise ValueError(f"cannot cast {type(val)} to a string")
 
 
+class StubLock:
+    def __init__(
+        self,
+        redis,
+        name: str,
+        timeout: Number | None = None,
+        sleep: Number = 0.1,
+        blocking: bool = True,
+        blocking_timeout: Number | None = None,
+        thread_local: bool = True,
+        raise_on_release_error: bool = True,
+    ):
+        self._locked = False
+        return None
+
+    def __enter__(self) -> Self:
+        self._locked = True
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Type[BaseException] | None,  # noqa: UP006
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        self._locked = False
+
+    def acquire(
+        self,
+        sleep: Number | None = None,
+        blocking: bool | None = None,
+        blocking_timeout: Number | None = None,
+        token: str | None = None,
+    ) -> bool:
+        self._locked = True
+        return True
+
+    def extend(self, additional_time: int | float, replace_ttl: bool = False) -> bool:
+        return True
+
+    def locked(self) -> bool:
+        return self._locked
+
+    def owned(self) -> bool:
+        return self._locked
+
+    def release(self) -> None:
+        self._locked = False
+
+    def reacquire(self) -> bool:
+        self._locked = True
+        return True
+
+
 # a sentinel argument, defined as a class so we can make typing happy
 @final
 class INSTANCE_DEFAULT:
@@ -48,19 +125,27 @@ class INSTANCE_DEFAULT:
 
 
 class RedisClient:
-    redis_store = FlaskRedis()
-    active = False
-    scripts = {}
-    always_raise: tuple[type[BaseException], ...] = (EventletTimeout,)
+    redis_store: Redis = FlaskRedis()  # type: ignore[assignment]
+    active: bool = False
+    scripts: dict[str, Script] = {}
+    always_raise: tuple[type[BaseException], ...] = (HardEventletTimeout,)
+    # default flakey_exceptions are those that will have already wasted valuable time, where we'd
+    # rather not waste any more time waiting for redis requests in this app context
+    flakey_exceptions: tuple[type[BaseException], ...] = (
+        SoftEventletTimeout,
+        redis_TimeoutError,
+    )
 
-    def init_app(self, app):
-        self.active = app.config.get("REDIS_ENABLED")
+    def init_app(self, app: Flask):
+        self.active = bool(app.config.get("REDIS_ENABLED"))
+        socket_timeout = app.config.get("REDIS_SOCKET_TIMEOUT")
+        socket_connect_timeout = app.config.get("REDIS_SOCKET_CONNECT_TIMEOUT")
         if self.active:
-            self.redis_store.init_app(app)
+            self.redis_store.init_app(app, socket_timeout=socket_timeout, socket_connect_timeout=socket_connect_timeout)  # type: ignore[attr-defined]
 
             self.register_scripts()
 
-    def register_scripts(self):
+    def register_scripts(self) -> None:
         # delete keys matching a pattern supplied as a parameter. Does so in batches of 5000 to prevent unpack from
         # exceeding lua's stack limit, and also to prevent errors if no keys match the pattern.
         # Inspired by https://gist.github.com/ddre54/0a4751676272e0da8186
@@ -137,8 +222,14 @@ class RedisClient:
         )
 
     def get_remaining_bucket_tokens(
-        self, key, replenish_per_sec, bucket_max, bucket_min, raise_exception=False, always_raise=INSTANCE_DEFAULT
-    ):
+        self,
+        key: str,
+        replenish_per_sec: int,
+        bucket_max: int,
+        bucket_min: int,
+        raise_exception: bool = False,
+        always_raise: tuple[type[BaseException], ...] | type[INSTANCE_DEFAULT] = INSTANCE_DEFAULT,
+    ) -> int | None:
         if self.active:
             try:
                 now = time()
@@ -148,7 +239,16 @@ class RedisClient:
             except Exception as e:
                 self.__handle_exception(e, raise_exception, always_raise, "tally-bucket-rate-limit", key)
 
-    def delete_by_pattern(self, pattern, raise_exception=False, always_raise=INSTANCE_DEFAULT):
+        return None
+
+        return None
+
+    def delete_by_pattern(
+        self,
+        pattern: str,
+        raise_exception: bool = False,
+        always_raise: tuple[type[BaseException], ...] | type[INSTANCE_DEFAULT] = INSTANCE_DEFAULT,
+    ) -> int:
         r"""
         Deletes all keys matching a given pattern, and returns how many keys were deleted.
         Pattern is defined as in the KEYS command: https://redis.io/commands/keys
@@ -169,7 +269,14 @@ class RedisClient:
 
         return 0
 
-    def exceeded_rate_limit(self, cache_key, limit, interval, raise_exception=False, always_raise=INSTANCE_DEFAULT):
+    def exceeded_rate_limit(
+        self,
+        cache_key: str,
+        limit: int,
+        interval: int,
+        raise_exception: bool = False,
+        always_raise: tuple[type[BaseException], ...] | type[INSTANCE_DEFAULT] = INSTANCE_DEFAULT,
+    ) -> bool:
         """
         Rate limiting.
         - Uses Redis sorted sets
@@ -205,7 +312,7 @@ class RedisClient:
             try:
                 pipe = self.redis_store.pipeline()
                 when = time()
-                pipe.zadd(cache_key, {when: when})
+                pipe.zadd(cache_key, {str(when): when})
                 pipe.zremrangebyscore(cache_key, "-inf", when - interval)
                 pipe.zcard(cache_key)
                 pipe.expire(cache_key, interval)
@@ -218,17 +325,42 @@ class RedisClient:
             return False
 
     def set(
-        self, key, value, ex=None, px=None, nx=False, xx=False, raise_exception=False, always_raise=INSTANCE_DEFAULT
+        self,
+        key: str,
+        value: bytes | str | float | uuid.UUID,
+        ex: int | None = None,
+        px: int | None = None,
+        nx: bool = False,
+        xx: bool = False,
+        raise_exception: bool = False,
+        always_raise: tuple[type[BaseException], ...] | type[INSTANCE_DEFAULT] = INSTANCE_DEFAULT,
+        skippable: bool = False,
     ):
+        redis_operation = "set"
         key = prepare_value(key)
         value = prepare_value(value)
+
+        if skippable and self.__is_flakey():
+            current_app.logger.warning(
+                "Not performing redis %s on %s because redis is possibly flakey",
+                redis_operation,
+                key,
+                extra={"redis_operation": redis_operation, "redis_key": key},
+            )
+            return
+
         if self.active:
             try:
                 self.redis_store.set(key, value, ex, px, nx, xx)
             except Exception as e:
-                self.__handle_exception(e, raise_exception, always_raise, "set", key)
+                self.__handle_exception(e, raise_exception, always_raise, redis_operation, key)
 
-    def incr(self, key, raise_exception=False, always_raise=INSTANCE_DEFAULT):
+    def incr(
+        self,
+        key: str,
+        raise_exception: bool = False,
+        always_raise: tuple[type[BaseException], ...] | type[INSTANCE_DEFAULT] = INSTANCE_DEFAULT,
+    ) -> Any:
         key = prepare_value(key)
         if self.active:
             try:
@@ -236,36 +368,73 @@ class RedisClient:
             except Exception as e:
                 self.__handle_exception(e, raise_exception, always_raise, "incr", key)
 
-    def decrby(self, key, amount, raise_exception=False, always_raise=INSTANCE_DEFAULT):
+        return None
+
+    def decrby(
+        self,
+        key: str,
+        amount: int,
+        raise_exception: bool = False,
+        always_raise: tuple[type[BaseException], ...] | type[INSTANCE_DEFAULT] = INSTANCE_DEFAULT,
+    ) -> Any:
         if self.active:
             try:
                 return self.redis_store.decrby(key, amount)
             except Exception as e:
                 self.__handle_exception(e, raise_exception, always_raise, "decrby", key)
 
-    def get(self, key, raise_exception=False, always_raise=INSTANCE_DEFAULT):
+        return None
+
+    def get(
+        self,
+        key: str,
+        raise_exception: bool = False,
+        always_raise: tuple[type[BaseException], ...] | type[INSTANCE_DEFAULT] = INSTANCE_DEFAULT,
+        skippable: bool = True,
+    ) -> Any:
+        redis_operation = "get"
         key = prepare_value(key)
+
+        if skippable and self.__is_flakey():
+            current_app.logger.warning(
+                "Not performing redis %s on %s because redis is possibly flakey",
+                redis_operation,
+                key,
+                extra={"redis_operation": redis_operation, "redis_key": key},
+            )
+            return None
+
         if self.active:
             try:
                 return self.redis_store.get(key)
             except Exception as e:
-                self.__handle_exception(e, raise_exception, always_raise, "get", key)
+                self.__handle_exception(e, raise_exception, always_raise, redis_operation, key)
 
         return None
 
-    def delete(self, *keys, raise_exception=False, always_raise=INSTANCE_DEFAULT):
-        keys = [prepare_value(k) for k in keys]
+    def delete(
+        self,
+        *keys: str,
+        raise_exception: bool = False,
+        always_raise: tuple[type[BaseException], ...] | type[INSTANCE_DEFAULT] = INSTANCE_DEFAULT,
+    ) -> int | None:
+        keys = tuple(prepare_value(k) for k in keys)
         if self.active:
             try:
                 self.redis_store.delete(*keys)
             except Exception as e:
                 self.__handle_exception(e, raise_exception, always_raise, "delete", ", ".join(keys))
 
-    def get_lock(self, key_name, **kwargs):
+        return None
+
+    def get_lock(self, key_name: str, **kwargs) -> Lock | StubLock:
         if self.active:
             return Lock(self.redis_store, key_name, **kwargs)
         else:
             return StubLock(redis=None, name="")
+
+    def __is_flakey(self):
+        return has_app_context() and g.get("redis_flakey")
 
     def __handle_exception(
         self,
@@ -273,7 +442,7 @@ class RedisClient:
         raise_exception: bool,
         always_raise: tuple[type[BaseException], ...] | type[INSTANCE_DEFAULT],
         operation: str,
-        key_name,
+        key_name: str,
     ) -> None:
         current_app.logger.exception(
             "Redis error performing %s on %s",
@@ -281,61 +450,20 @@ class RedisClient:
             key_name,
             extra={"redis_operation": operation, "redis_key": key_name},
         )
+
+        if isinstance(e, ReadOnlyError) or (isinstance(e, ResponseError) and "READONLY" in str(e)):
+            # it's likely we're in the middle of a failover of some sort and it's possible
+            # that any number of our pooled connections are connected to the "wrong" redis
+            # instance. give these a chance to do a fresh dns lookup and connect to the
+            # "right" instance.
+            current_app.logger.warning("Reacting to %r by disconnecting redis connection pool's idle connections", e)
+            self.redis_store.connection_pool.disconnect()
+
+        if isinstance(e, self.flakey_exceptions) and has_app_context():
+            current_app.logger.warning("Marking redis as flakey for remainder of app context")
+            g.redis_flakey = True
+
         if always_raise is INSTANCE_DEFAULT:
             always_raise = self.always_raise
         if raise_exception or isinstance(e, always_raise or ()):
             raise e
-
-
-class StubLock:
-    def __init__(
-        self,
-        redis,
-        name: str,
-        timeout: Number | None = None,
-        sleep: Number = 0.1,
-        blocking: bool = True,
-        blocking_timeout: Number | None = None,
-        thread_local: bool = True,
-        raise_on_release_error: bool = True,
-    ):
-        self._locked = False
-        return None
-
-    def __enter__(self) -> "StubLock":
-        self._locked = True
-        return self
-
-    def __exit__(
-        self,
-        exc_type: Type[BaseException] | None,  # noqa: UP006
-        exc_value: BaseException | None,
-        traceback: TracebackType | None,
-    ) -> None:
-        self._locked = False
-
-    def acquire(
-        self,
-        sleep: Number | None = None,
-        blocking: bool | None = None,
-        blocking_timeout: Number | None = None,
-        token: str | None = None,
-    ) -> bool:
-        self._locked = True
-        return True
-
-    def extend(self, additional_time: int | float, replace_ttl: bool = False) -> bool:
-        return True
-
-    def locked(self) -> bool:
-        return self._locked
-
-    def owned(self) -> bool:
-        return self._locked
-
-    def release(self) -> None:
-        self._locked = False
-
-    def reacquire(self) -> bool:
-        self._locked = True
-        return True

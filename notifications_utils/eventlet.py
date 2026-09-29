@@ -3,6 +3,8 @@ import time
 from collections.abc import Callable
 from contextlib import nullcontext
 
+from notifications_utils.logging.formatting import _ns_per_s
+
 
 # eventlet's own Timeout class inherits from BaseException instead of
 # Exception, which makes more likely that an attempted catch-all
@@ -17,9 +19,6 @@ class HardEventletTimeout(EventletTimeout):
 
 class SoftEventletTimeout(EventletTimeout):
     pass
-
-
-_ns_per_s = 1.0e-9
 
 
 # eventlet detection cribbed from
@@ -140,7 +139,7 @@ if using_eventlet:
         if getattr(current_greenlet, "_thread_time_ns_atstart", None) is None:
             return None
 
-        return (time.thread_time_ns() - current_greenlet._thread_time_ns_atstart) + getattr(
+        return (time.thread_time_ns() - current_greenlet._thread_time_ns_atstart) + getattr(  # type: ignore[attr-defined]
             current_greenlet, "_thread_time_ns_accum", 0
         )
 
@@ -158,7 +157,7 @@ if using_eventlet:
         if getattr(current_greenlet, "_perf_counter_ns_atstart", None) is None:
             return None
 
-        return (time.perf_counter_ns() - current_greenlet._perf_counter_ns_atstart) + getattr(
+        return (time.perf_counter_ns() - current_greenlet._perf_counter_ns_atstart) + getattr(  # type: ignore[attr-defined]
             current_greenlet, "_perf_counter_ns_accum", 0
         )
 
@@ -178,8 +177,8 @@ if using_eventlet:
         """
         current_greenlet = greenlet.getcurrent()
 
-        current_greenlet._thread_time_ns_max_continuous = 0
-        current_greenlet._perf_counter_ns_max_continuous = 0
+        current_greenlet._thread_time_ns_max_continuous = 0  # type: ignore[attr-defined]
+        current_greenlet._perf_counter_ns_max_continuous = 0  # type: ignore[attr-defined]
 
     def greenlet_thread_time_ns_max_continuous() -> int | None:
         """
@@ -200,7 +199,7 @@ if using_eventlet:
         # the max continuous period could be the one we're currenly *in*
         current_continuous_ns = 0
         if getattr(current_greenlet, "_thread_time_ns_atstart", None) is not None:
-            current_continuous_ns = time.thread_time_ns() - current_greenlet._thread_time_ns_atstart
+            current_continuous_ns = time.thread_time_ns() - current_greenlet._thread_time_ns_atstart  # type: ignore[attr-defined]
 
         return max(current_continuous_ns, getattr(current_greenlet, "_thread_time_ns_max_continuous", None) or 0)
 
@@ -223,7 +222,7 @@ if using_eventlet:
         # the max continuous period could be the one we're currenly *in*
         current_continuous_ns = 0
         if getattr(current_greenlet, "_perf_counter_ns_atstart", None) is not None:
-            current_continuous_ns = time.perf_counter_ns() - current_greenlet._perf_counter_ns_atstart
+            current_continuous_ns = time.perf_counter_ns() - current_greenlet._perf_counter_ns_atstart  # type: ignore[attr-defined]
 
         return max(current_continuous_ns, getattr(current_greenlet, "_perf_counter_ns_max_continuous", None) or 0)
 
@@ -248,13 +247,13 @@ if using_eventlet:
         return info
 
 else:
-    EventletTimeoutMiddleware = None
-    account_greenlet_times = None
+    EventletTimeoutMiddleware = None  # type: ignore
+    account_greenlet_times = None  # type: ignore[assignment]
 
     greenlet_thread_time_ns = lambda: None  # noqa
     greenlet_perf_counter_ns = lambda: None  # noqa
     reset_greenlet_stats = lambda: None  # noqa
-    greenlet_perf_count_ns_max_continuous = lambda: None  # noqa
+    greenlet_perf_counter_ns_max_continuous = lambda: None  # noqa
     greenlet_thread_time_ns_max_continuous = lambda: None  # noqa
     greenlet_context_switch_count = lambda: None  # noqa
     get_main_greenlets_debug_info = lambda: {}  # noqa

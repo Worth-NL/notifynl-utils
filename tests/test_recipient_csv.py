@@ -204,7 +204,7 @@ def test_recipient_column_headers(template_type, expected):
     ],
 )
 def test_get_rows(file_contents, template_type, expected):
-    rows = list(RecipientCSV(file_contents, template=_sample_template(template_type)).rows)
+    rows = list(RecipientCSV(file_contents, template=_sample_template(template_type)))
     if not expected:
         assert rows == expected
     for index, row in enumerate(expected):
@@ -232,7 +232,7 @@ def test_get_rows_does_no_error_checking_of_rows_or_cells(mocker):
         max_errors_shown=3,
     )
 
-    rows = recipients.get_rows()
+    rows = recipients._get_rows()
     for _ in range(3):
         assert next(rows).recipient == "a@b.com"
 
@@ -257,12 +257,10 @@ def test_get_rows_only_iterates_over_file_once(mocker):
         template=_sample_template("email", "hello ((name))"),
     )
 
-    rows = recipients.get_rows()
-    for _ in range(3):
-        next(rows)
+    for _ in range(10):
+        list(recipients)
 
     assert row_mock.call_count == 3
-    assert recipients.rows_as_list is None
 
 
 @pytest.mark.parametrize(
@@ -301,10 +299,10 @@ def test_get_annotated_rows(file_contents, template_type, expected):
         file_contents, template=_sample_template(template_type, "hello ((name))"), max_initial_rows_shown=1
     )
     for index, expected_row in enumerate(expected):
-        annotated_row = list(recipients.rows)[index]
+        annotated_row = list(recipients)[index]
         assert annotated_row.index == expected_row["index"]
         assert annotated_row.message_too_long == expected_row["message_too_long"]
-    assert len(list(recipients.rows)) == 2
+    assert len(list(recipients)) == 2
     assert len(list(recipients.initial_rows)) == 1
     assert not recipients.has_errors
 
@@ -345,7 +343,7 @@ def test_big_list_validates_right_through(template_type, row_count, header, fill
         max_errors_shown=100,
         max_initial_rows_shown=3,
     )
-    assert len(list(big_csv.rows)) == row_count
+    assert len(list(big_csv)) == row_count
     assert _index_rows(big_csv.rows_with_bad_recipients) == {row_count - 1}  # 0 indexed
     assert _index_rows(big_csv.rows_with_errors) == {row_count - 1}
     assert len(list(big_csv.initial_rows_with_errors)) == 1
@@ -383,11 +381,13 @@ def test_overly_big_list_stops_processing_rows_beyond_max(mocker):
         "notifications_utils.recipients.insert_or_append_to_dict",
     )
 
-    big_csv = RecipientCSV(
+    class Max10RowsRecipientCSV(RecipientCSV):
+        max_rows = 10
+
+    big_csv = Max10RowsRecipientCSV(
         "phone number,name\n" + ("07700900123,example\n" * 123),
         template=_sample_template("sms", content="hello ((name))"),
     )
-    big_csv.max_rows = 10
 
     # Our CSV has lots of rows…
     assert big_csv.too_many_rows
@@ -828,6 +828,43 @@ def test_international_recipients(file_contents, rows_with_bad_recipients, expec
     assert _index_rows(recipients.rows_with_bad_recipients) == rows_with_bad_recipients
 
 
+@pytest.mark.skip(reason="[NOTIFYNL] Dutch phone number implementation breaks this test")
+@pytest.mark.parametrize(
+    "file_contents, rows_with_bad_recipients, block_ofcom_protected_block",
+    [
+        (
+            """
+            phone number
+            07034700000
+            07988957264
+            +447810573844
+        """,
+            {0},
+            True,
+        ),
+        (
+            """
+            phone number
+            07034700000
+            07988957264
+            +447810573844
+        """,
+            set(),
+            False,
+        ),
+    ],
+)
+def test_ofcom_recipients_in_ofcom_protected_block(
+    file_contents, rows_with_bad_recipients, block_ofcom_protected_block
+):
+    recipients = RecipientCSV(
+        file_contents,
+        template=_sample_template("sms"),
+        block_ofcom_protected_blocks=block_ofcom_protected_block,
+    )
+    assert _index_rows(recipients.rows_with_bad_recipients) == rows_with_bad_recipients
+
+
 @pytest.mark.parametrize(
     "extra_args, too_many",
     (
@@ -938,21 +975,24 @@ def test_sms_to_uk_landlines(file_contents, rows_with_bad_recipients):
 
 
 def test_errors_when_too_many_rows():
-    recipients = RecipientCSV(
+    class Max100RowsRecipientCSV(RecipientCSV):
+        max_rows = 100
+
+    recipients = Max100RowsRecipientCSV(
         "email address\n" + ("a@b.com\n" * 101),
         template=_sample_template("email"),
     )
 
     # Confirm the normal max_row limit
-    assert recipients.max_rows == 100_000
-    # Override to make this test faster
-    recipients.max_rows = 100
+    assert RecipientCSV.max_rows == 100_000
+    # Confirm our instance has a lower limit to make the test faster
+    assert recipients.max_rows == 100
 
     assert recipients.too_many_rows is True
     assert recipients.has_errors is True
-    assert recipients.rows[99]["email_address"].data == "a@b.com"
+    assert recipients[99]["email_address"].data == "a@b.com"
     # We stop processing subsequent rows
-    assert recipients.rows[100] is None
+    assert recipients[100] is None
 
 
 @pytest.mark.parametrize(
@@ -1263,10 +1303,10 @@ def test_multiple_sms_recipient_columns(international_sms):
         allow_international_sms=international_sms,
     )
     assert recipients.column_headers == ["phone number", "phone_number", "foo"]
-    assert recipients.column_headers_as_column_keys == {"phonenumber": "", "foo": ""}.keys()
-    assert recipients.rows[0].get("phone number").data == ("07900 900333")
-    assert recipients.rows[0].get("phone_number").data == ("07900 900333")
-    assert recipients.rows[0].get("phone number").error is None
+    assert recipients.insensitive_column_headers == {"phonenumber": "", "foo": ""}.keys()
+    assert recipients[0].get("phone number").data == ("07900 900333")
+    assert recipients[0].get("phone_number").data == ("07900 900333")
+    assert recipients[0].get("phone number").error is None
     assert recipients.duplicate_recipient_column_headers == OrderedSet(["phone number", "phone_number"])
     assert recipients.has_errors
 
@@ -1288,7 +1328,7 @@ def test_multiple_sms_recipient_columns_with_missing_data(column_name):
     if column_name != "phone number":
         expected_column_headers.append(column_name)
     assert recipients.column_headers == expected_column_headers
-    assert recipients.column_headers_as_column_keys == {"phonenumber": "", "names": ""}.keys()
+    assert recipients.insensitive_column_headers == {"phonenumber": "", "names": ""}.keys()
     # A piece of weirdness uncovered: since rows are created before spaces in column names are normalised, when
     # there are duplicate recipient columns and there is data for only one of the columns, if the columns have the same
     # spacing, phone number data will be the correct phone number, while if the spacing style differs between two
@@ -1297,8 +1337,8 @@ def test_multiple_sms_recipient_columns_with_missing_data(column_name):
     phone_number_data = None
     if column_name == "phone number":
         phone_number_data = "07900 900111"
-    assert recipients.rows[0]["phonenumber"].data == phone_number_data
-    assert recipients.rows[0].get("phone number").error is None
+    assert recipients[0]["phonenumber"].data == phone_number_data
+    assert recipients[0].get("phone number").error is None
     expected_duplicated_columns = ["phone number"]
     if column_name != "phone number":
         expected_duplicated_columns.append(column_name)
@@ -1314,8 +1354,8 @@ def test_multiple_email_recipient_columns():
         """,
         template=_sample_template("email"),
     )
-    assert recipients.rows[0].get("email address").data == ("two@three.com")
-    assert recipients.rows[0].get("email address").error is None
+    assert recipients[0].get("email address").data == ("two@three.com")
+    assert recipients[0].get("email address").error is None
     assert recipients.has_errors
     assert recipients.duplicate_recipient_column_headers == OrderedSet(["EMAILADDRESS", "email_address"])
     assert recipients.has_errors
@@ -1329,8 +1369,8 @@ def test_multiple_letter_recipient_columns():
         """,
         template=_sample_template("letter"),
     )
-    assert recipients.rows[0].get("addressline1").data == ("3")
-    assert recipients.rows[0].get("addressline1").error is None
+    assert recipients[0].get("addressline1").data == ("3")
+    assert recipients[0].get("addressline1").error is None
     assert recipients.has_errors
     assert recipients.duplicate_recipient_column_headers == OrderedSet(
         ["address line 1", "Address Line 2", "address line 1", "address_line_2"]
@@ -1380,7 +1420,7 @@ def test_multi_line_placeholders_work():
         template=_sample_template("email", "((data))"),
     )
 
-    assert recipients.rows[0].personalisation["data"] == "a\nb\n\nc"
+    assert recipients[0].personalisation["data"] == "a\nb\n\nc"
 
 
 @pytest.mark.skip(reason="[NOTIFYNL] Dutch postal address implementation - now on test_nl_test_recipients.py")
@@ -1468,7 +1508,7 @@ def test_recipient_csv_checks_should_validate_flag(should_validate):
 
     recipients._get_error_for_field = Mock(return_value=None)
 
-    list(recipients.get_rows())
+    list(recipients._get_rows())
 
     assert template.is_message_empty.called is should_validate
     assert recipients._get_error_for_field.called is should_validate
@@ -1492,25 +1532,33 @@ def test_errors_on_qr_codes_with_too_much_data():
 
     assert recipients.has_errors is True
     assert len(list(recipients.rows_with_errors)) == 1
-    assert recipients.rows_as_list[0].has_error is False
-    assert recipients.rows_as_list[0].qr_code_too_long is None
-    assert recipients.rows_as_list[1].has_error is True
-    assert isinstance(recipients.rows_as_list[1].qr_code_too_long, QrCodeTooLong)
+    assert recipients[0].has_error is False
+    assert recipients[0].qr_code_too_long is None
+    assert recipients[1].has_error is True
+    assert isinstance(recipients[1].qr_code_too_long, QrCodeTooLong)
 
 
 def test_column_headers_are_cached(mocker):
     mock_csv_reader = mocker.patch(
-        "notifications_utils.recipients.csv.reader", return_value=(("phone_number", "PhoneNumber", "name", "name"),)
+        "notifications_utils.recipients.csv.reader",
+        side_effect=lambda *args, **kwargs: iter((("phone_number", "PhoneNumber", "name", "name"),)),
     )
     template = _sample_template("sms", content="Hello")
     recipients = RecipientCSV("mocked", template=template)
 
-    for _ in range(3):
+    for _ in range(5):
         assert recipients._raw_column_headers == ("phone_number", "PhoneNumber", "name", "name")
         assert recipients.column_headers == ["phone_number", "PhoneNumber", "name"]
-        assert recipients.column_headers_as_column_keys == OrderedSet(["phonenumber", "name"])
+        assert recipients.insensitive_column_headers == OrderedSet(["phonenumber", "name"])
 
-    assert mock_csv_reader.call_args_list == [mocker.call(ANY, quoting=0, skipinitialspace=True)]
+    assert mock_csv_reader.call_args_list == [
+        # First pass over the file to work out index_of_first_empty_column
+        mocker.call(ANY, quoting=0, skipinitialspace=True),
+        # Second pass over the file (first row only) to get the column headers
+        mocker.call(ANY, quoting=0, skipinitialspace=True),
+        # Third pass over the file to build the Row objects
+        mocker.call(ANY, quoting=0, skipinitialspace=True),
+    ]
 
 
 def test_duplicate_headers_are_cached(mocker):
@@ -1527,6 +1575,9 @@ def test_duplicate_headers_are_cached(mocker):
         assert recipients.duplicate_recipient_column_headers == OrderedSet(("phone_number", "PhoneNumber"))
 
     assert mock_column_headers.call_args_list == [
+        # 2 calls on RecipientCSV.__init__
+        mocker.call(),
+        mocker.call(),
         # 2 calls per loop, but cached after the first of 3 loops
         mocker.call(),
         mocker.call(),

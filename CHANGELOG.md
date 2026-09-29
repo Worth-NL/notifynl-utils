@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## 102.0.0
+
+* Merged alphagov/notifications-utils up to upstream 132.2.0 (`0a5d9e4`, alphagov sync cutoff
+  2026-09-28). Breaking for consumers - see upstream's own 116.0.0-132.0.0 entries below for detail:
+  * StatsD client removed (`notifications_utils.clients.statsd`); metrics are OpenTelemetry-only.
+  * `get_letter_timings(...)` replaced by `LetterTimings(...)` (same attributes).
+  * `RecipientCSV.rows`/`rows_as_list`/`get_rows()`/`placeholders_as_column_keys`/
+    `column_headers_as_column_keys` removed - iterate the `RecipientCSV` instead.
+  * `InsensitiveDict.from_keys` removed; `PhoneNumber._is_tv_number` is now public `is_tv_number`.
+  * `formatted_list` arguments after `items` are keyword-only.
+  * Shared ruff config now flags commented-out code (ERA001); `make lint` also runs mypy.
+* `HTMLEmailTemplate` now HTML-escapes brand values (upstream 131.2.1), including NL's
+  `brand_alignment`.
+* Fixed NL S3 folder helpers referencing `botocore` after upstream dropped that import.
+
 ## 101.3.2
 
 * Bumped `mistune` from `3.3.0` to `3.3.3`, fixing CVE-2026-76098 (a HIGH-severity DoS:
@@ -85,6 +100,241 @@
   confidentiality -- unlike the existing `Signing` client, which only signs (its
   docstring already says it provides no confidentiality: signed values are
   recoverable by anyone via bare base64 decoding, no secret key needed).
+
+## 132.2.0
+
+* Add `block_ofcom_protected_blocks` as attribute to RecipientCSV to use in phone number validation
+
+## 132.1.0
+
+* Adds `OtelAwareEventletWorker`
+
+## 132.0.2
+
+* Fixes `greenlet_perf_counter_ns_max_continuous` fallback when Eventlet is not detected
+
+## 132.0.1
+
+* Ran `make refreeze-requirements` during dependency day
+
+## 132.0.0
+
+* Renames `block_ofcom_protected_ranges` to `block_ofcom_protected_block` as argument in `PhoneNumber.validate`
+
+## 131.2.1
+
+* Fixes a bug with HTML escaping in `template.HTMLEmailTemplate`
+
+## 131.2.0
+
+* Adds `block_ofcom_protected_ranges` as an optional argument to `PhoneNumber.validate`
+
+## 131.1.0
+
+* Makes `PhoneNumber._is_tv_number` a public method (`PhoneNumber.is_tv_number`)
+
+## 131.0.0
+
+* Removes `RecipientCSV.rows`, `RecipientCSV._rows_as_list` (use, for example `for r in RecipientCSV(…)` instead)
+
+## 130.2.0
+
+* Bundles a reduced list of "protected" phone prefixes from OFCOM's `S7.csv` file and provides a new `PhoneNumber` method, `is_number_in_S7_protected_range()` to efficiently query it.
+
+## 130.1.0
+
+* Reverts change in 127.1.0. notifications-api is no longer using these methods.
+
+## 130.0.0
+
+* Removes `RecipientCSV.placeholders_as_column_keys` (use `RecipientCSV.placeholders` instead, now an instance of `InsensitiveSet`)
+* Removes `RecipientCSV.recipient_column_headers_as_column_keys` (use `RecipientCSV.recipient_column_headers` instead, now an instance of `InsensitiveSet`)
+* Renames `RecipientCSV.column_headers_as_column_keys` to `RecipientCSV.insensitive_column_headers`
+* Removes `RecipientCSV.is_address_column(key)` (use `key in RecipientCSV.address_columns` instead)
+* Removes `recipients.address_columns` (use `RecipientCSV.address_columns` instead)
+
+## 129.0.0
+
+* Running `make lint` will now flag commented-out code (per https://docs.astral.sh/ruff/rules/commented-out-code/)
+
+## 128.0.0
+
+* Allows a full range of unicode characters in text messages
+* Removes `SanitiseSMS.downgrade_character` and `SanitiseSMS.encode_char`, `SanitiseSMS.WELSH_DIACRITICS` and `SanitiseSMS.ALLOWED_CHARACTERS` (should not be used anywhere)
+* Removes `SanitiseSMS.get_non_gsm_characters()` (use `template.non_gsm_characters` instead)
+* `formatters.normalise_whitespace_and_newlines` and `formatters.normalise_whitespace` have a new, optional `preserve_zero_width_joiner` argument (no change in behaviour if not set to `True`)
+
+## 127.1.0
+
+* Adds additional methods to `recipient_validation.phone_number.PhoneNumber`, `is_uk_mobile_number` and `get_carrier_info`
+
+## 127.0.0
+
+* Removes `SanitiseText.get_non_compatible_characters()` (for text message content use `SanitiseText.get_non_gsm_characters()` instead)
+
+## 126.0.1
+
+* Runs `remove_whitespace_before_punctuation` before GSM-7-encoding in subclasses of `BaseSMSTemplate`
+
+## 126.0.0
+
+* Removes `formatters.sms_encode` (use `sanitise_text.SantiseSMS.encode` directly instead)
+
+## 125.1.1
+
+* Ran `make refreeze-requirements` during dependency day
+
+## 125.1.0
+
+* `NotifyTask`: measure thread time used by celery task execution, annotate this on to completion log messages and emit a metric.
+
+## 125.0.1
+
+* Fixes a number of bugs with counting characters in text message templates
+
+## 125.0.0
+
+* Removes `RecipientCSV.rows_as_list` and `RecipientCSV.get_rows()`. Use `for row in recipient_csv_instance:`, `len(recipient_csv_instance)`, etc. instead
+
+## 124.2.1
+
+* Fix antivirus scan when the uploaded file is a Werkzeug `FileStorage` (requests 2.34)
+
+## 124.2.0
+
+* `RequestCache`: use `RelaxedContainerJSONEncoder` to encode cached payloads
+
+## 124.1.0
+
+* Simplify object normalisation performed in `RelaxedContainerJSONEncodingMixin` by trusting `JSONEncoder` to recurse into our return values instead of doing this ourselves.
+* `ZendeskClient`: use `RelaxedContainerJSONEncoder` for json payloads
+
+## 124.0.0
+
+* Rename `FlaskRelaxedContainerJSONEncoder` to `FlaskRelaxedContainerJSONProvider`, don't implement `JSONEncoder`.
+
+## 123.5.0
+
+* Add `RelaxedContainerJSONEncoder` `JSONEncoder` subclass to allow encoding of structures with alternative implementations of `Sequence` and `Mapping`.
+* Add `FlaskRelaxedContainerJSONEncoder`, combining flask's modified `JSONEncoder` with `RelaxedContainerJSONEncoder`.
+
+## 123.4.0
+
+* Add China (+86 country code) back to `international_billing_rates.yml`
+
+## 123.3.0
+
+* Remove China (+86 country code) from `international_billing_rates.yml` to remove China from the international pricing page and to raise an exception if a user tries to send.
+
+## 123.2.0
+
+* flask request logging: add ability to include `basic_auth_username` if present
+
+## 123.1.0
+
+* `AbstractInsensitiveSet`, `AbstractInsensitiveDict`, `InsensitiveSet` & `InsensitiveDict` are now built on top of separately usable `AbstractImmutableInsensitiveSet`, `AbstractImmutableInsensitiveDict`, `ImmutableInsensitiveSet` & `ImmutableInsensitiveDict` classes.
+
+## 123.0.0
+
+* `letter_timings.get_letter_timings` has been replaced with `letter_timings.LetterTimings`. For code like `get_letter_timings(...).latest_delivery` use `LetterTimings(...).latest_delivery` instead
+
+## 122.0.1
+* Bumped dependencies with `make refreeze-requirements`
+
+## 122.0.0
+
+* Reimplement `InsensitiveDict` as an implementation of a generic `MutableMapping` rather than inheriting directly from `dict`. This allows us to avoid some typing complications, but means some `dict`-only methods and operators are not implemented. However, all the generic `MutableMapping` methods should behave "correctly" (i.e. normalise keys), including `update` and `setdefault`, which the previous implementation ignored.
+
+## 121.0.0
+
+* Removes `InsensitiveDict.from_keys`
+* Removes the `override_duplicates` argument to `InsensitiveDict`
+
+## 120.2.0
+
+* Adds the ability to specify per-project config for uv by creating an optional `uv-overrides.toml` file
+
+## 120.1.0
+
+* `RedisClient`: add `redis_flakey` mechanism to avoid repeated timeouts
+
+## 120.0.0
+
+* Removes `BaseLetterTemplate.too_many_pages` (subclasses which define `page_count` should implement this themselves)
+
+## 119.0.0
+
+* Reimplement `InsensitiveSet` using standard python dicts and a more complete implementation of `MutableSet` & `Sequence`. Subtle (but hopefully unimportant) behaviour changes should be expected.
+* `InsensitiveDict.keys()` now returns an `InsensitiveSet`.
+
+## 118.0.2
+
+* Fix small bug in counting length of text messages with non-GSM and extended GSM characters
+
+## 118.0.1
+
+* Improve performance of `Field.placeholders`
+
+## 118.0.0
+
+* Removes `notifications_utils.template.SubjectMixin` (not used outside the repo)
+
+## 117.1.0
+
+* Add `max_items_shown` and `word_for_items_not_shown` arguments to `formatted_list`
+* All arguments to `formatted_list` except for `items` are now keyword-only
+
+## 117.0.2
+
+* Restrict Gunicorn to versions <= 26.0.0, since version 26.0.0 dropped Eventlet support
+
+## 117.0.1
+
+* Small speed improvements to `validate_and_format_email_address`
+
+## 117.0.0
+
+* Remove StatsD client
+
+## 116.1.0
+
+* Add `interruptible_io` moodule.
+* `RecipientCSV`: use `InterruptibleIterableList` for cached rows property
+
+## 116.0.0
+
+* Add `BaseSMSTemplate.count_of_characters_above_limit`
+* Add `BaseSMSTemplate.non_gsm_characters`
+* Add `BaseSMSTemplate.count_of_characters_above_previous_fragment_boundary`
+* Fix edge case where wrong fragment count would be shown with Welsh placeholder name
+* Removes `notifications_utils.template.get_sms_fragment_count` (not used outside this repo)
+* Removes `notifications_utils.template.non_gsm_characters` (not used outside this repo)
+* Removes `notifications_utils.template.count_extended_gsm_chars` (not used outside this repo)
+
+## 115.4.1
+
+Add `dir="auto"` attribute to sms_preview_template message wrapper
+
+## 115.4.0
+
+* `RedisClient`: allow configuration of `socket_timeout` and `socket_connect_timeout` parameters via flask config vars `REDIS_SOCKET_TIMEOUT` and `REDIS_SOCKET_CONNECT_TIMEOUT` respectively.
+* `RedisClient`: use `HardEventletTimeout` as default `always_raise` exception.
+
+## 115.3.1
+
+* Fix easily-and-accidentally-exploited ReDoS vulnerabilities in `remove_whitespace_before_punctuation` and `replace_hyphens_with_en_dashes`.
+
+## 115.3.0
+
+Add `file_types.mime_type_from_extension`
+
+## 115.2.0
+
+* Add file of known email domains and a function for checking the ending of an email address
+
+## 115.1.0
+
+* `RedisClient`: detect "read-only" errors & drop idle connections. These errors are probably a sign of a failover event, and our connection pool probably has stale connections to the "wrong" redis instance.
 
 ## 115.0.2
 

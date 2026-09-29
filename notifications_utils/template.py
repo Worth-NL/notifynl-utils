@@ -1,13 +1,18 @@
+import datetime
 import math
 from abc import ABC, abstractmethod
-from datetime import UTC, datetime
+from collections.abc import Mapping, Sequence, Set
+from contextlib import suppress
 from functools import lru_cache
 from html import unescape
 from os import path
-from typing import Literal
+from typing import Any, Literal, cast
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
+from jinja2 import Template as jinja2_Template
 from markupsafe import Markup
+from ordered_set import OrderedSet
+from werkzeug.utils import cached_property
 
 from notifications_utils import (
     ENGLISH_TO_WELSH_MONTHS,
@@ -31,12 +36,11 @@ from notifications_utils.formatters import (
     replace_hyphens_with_en_dashes,
     replace_hyphens_with_non_breaking_hyphens,
     restore_svg_dashes,
-    sms_encode,
     strip_leading_whitespace,
     strip_unsupported_characters,
     unlink_govuk_escaped,
 )
-from notifications_utils.insensitive_dict import InsensitiveDict
+from notifications_utils.insensitive_dict import InsensitiveDict, InsensitiveSet
 from notifications_utils.markdown import (
     notify_email_markdown,
     notify_email_preheader_markdown,
@@ -62,16 +66,29 @@ template_env = Environment(
 
 
 class Template(ABC):
+    @property
+    @abstractmethod
+    def template_type(self):
+        pass
+
+    id: Any
+    name: Any
+    content: Any
+    redact_missing_personalisation: bool
+
+    _template: Mapping[str, Any]
+    _values: Mapping[str | None, Any]
+
     def __init__(
         self,
-        template,
-        values=None,
-        redact_missing_personalisation=False,
+        template: Mapping[str, Any],
+        values: Mapping[str | None, Any] | None = None,
+        redact_missing_personalisation: bool = False,
     ):
-        if not isinstance(template, dict):
-            raise TypeError("Template must be a dict")
-        if values is not None and not isinstance(values, dict):
-            raise TypeError("Values must be a dict")
+        if not isinstance(template, Mapping):
+            raise TypeError("Template must be a Mapping")
+        if values is not None and not isinstance(values, Mapping):
+            raise TypeError("Values must be a Mapping")
         if template.get("template_type") != self.template_type:
             raise TypeError(
                 f"Cannot initialise {self.__class__.__name__} with {template.get('template_type')} template_type"
@@ -79,20 +96,19 @@ class Template(ABC):
         self.id = template.get("id", None)
         self.name = template.get("name", None)
         self.content = template["content"]
-        self.welsh_content = template.get("letter_welsh_content", None)
         self._template = template
         self.values = values
         self.redact_missing_personalisation = redact_missing_personalisation
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'{self.__class__.__name__}("{self.content}", {self.values})'
 
     @abstractmethod
-    def __str__(self):
+    def __str__(self) -> str:
         pass
 
     @property
-    def content_with_placeholders_filled_in(self):
+    def content_with_placeholders_filled_in(self) -> str:
         return str(
             Field(
                 self.content,
@@ -104,47 +120,39 @@ class Template(ABC):
         ).strip()
 
     @property
-    def values(self):
-        if hasattr(self, "_values"):
-            return self._values
-        return {}
+    def values(self) -> Mapping[str | None, Any]:
+        return getattr(self, "_values", {})
 
     @values.setter
-    def values(self, value):
-        if not value:
-            self._values = {}
-        else:
-            placeholders = InsensitiveDict.from_keys(self.placeholders)
-            self._values = InsensitiveDict(value).as_dict_with_keys(
-                self.placeholders
-                | {key for key in value.keys() if InsensitiveDict.make_key(key) not in placeholders.keys()}
+    def values(self, new_values: Mapping[str | None, Any] | None) -> None:
+        with suppress(AttributeError):
+            del self._values
+
+        if new_values:
+            self._values = InsensitiveDict(new_values).as_dict_with_keys(
+                cast(InsensitiveSet[str | None], self.placeholders) | iter(new_values.keys())
             )
 
     @property
-    def placeholders(self):
-        welsh = set()
-        if self.welsh_content:
-            welsh = get_placeholders(self.welsh_content)
-        english = get_placeholders(self.content)
-        all = welsh | english
-        return all
+    def placeholders(self) -> InsensitiveSet[str]:
+        return get_placeholders(self.content)
 
     @property
-    def missing_data(self):
+    def missing_data(self) -> Sequence[str]:
         return [placeholder for placeholder in self.placeholders if self.values.get(placeholder) is None]
 
     @property
-    def additional_data(self):
+    def additional_data(self) -> Set[str | None]:
         return self.values.keys() - self.placeholders
 
     def get_raw(self, key, default=None):
         return self._template.get(key, default)
 
     @property
-    def content_count(self):
+    def content_count(self) -> int:
         return len(self.content_with_placeholders_filled_in)
 
-    def is_message_empty(self):
+    def is_message_empty(self) -> bool:
         if not self.content:
             return True
 
@@ -156,47 +164,51 @@ class Template(ABC):
 
         return self.content_count == 0
 
-    def is_message_too_long(self):
+    def is_message_too_long(self) -> bool:
         return False
 
 
 class BaseSMSTemplate(Template):
-    template_type = "sms"
+    template_type: str = "sms"
+    _prefix: str | None
+    show_prefix: bool
+    sender: Any
 
     def __init__(
         self,
-        template,
-        values=None,
-        prefix=None,
-        show_prefix=True,
-        sender=None,
+        template: Mapping[str, Any],
+        values: Mapping[str | None, Any] | None = None,
+        prefix: str | None = None,
+        show_prefix: bool = True,
+        sender: Any = None,
     ):
         self.prefix = prefix
         self.show_prefix = show_prefix
         self.sender = sender
-        self._content_count = None
         super().__init__(template, values)
 
     @property
-    def values(self):
+    def values(self) -> Mapping[str | None, Any]:
         return super().values
 
     @values.setter
-    def values(self, value):
+    def values(self, new_values: Mapping[str | None, Any] | None):
         # If we change the values of the template it’s possible the
-        # content count will have changed, so we need to reset the
-        # cached count.
-        if self._content_count is not None:
-            self._content_count = None
+        # content will have changed, so we need to reset the cached
+        # count and content
+        with suppress(KeyError):  # Raised if value has not yet been cached
+            del self.content_count
+        with suppress(KeyError):  # Raised if value has not yet been cached
+            del self.unsanitised_content
 
         # Assigning to super().values doesn’t work here. We need to get
         # the property object instead, which has the special method
         # fset, which invokes the setter it as if we were
         # assigning to it outside this class.
-        super(BaseSMSTemplate, type(self)).values.fset(self, value)
+        super(BaseSMSTemplate, type(self)).values.fset(self, new_values)  # type: ignore[attr-defined]
 
     @property
-    def content_with_placeholders_filled_in(self):
+    def content_with_placeholders_filled_in(self) -> str:
         # We always call SMSMessageTemplate.__str__ regardless of
         # subclass, to avoid any HTML formatting. SMS templates differ
         # in that the content can include the service name as a prefix.
@@ -207,45 +219,74 @@ class BaseSMSTemplate(Template):
         return SMSMessageTemplate.__str__(self)
 
     @property
-    def prefix(self):
+    def prefix(self) -> str | None:
         return self._prefix if self.show_prefix else None
 
     @prefix.setter
-    def prefix(self, value):
+    def prefix(self, value: str | None):
         self._prefix = value
 
-    @property
-    def content_count(self):
+    @cached_property
+    def content_count(self) -> int:
         """
-        Return the number of characters in the message. Note that we don't distinguish between GSM and non-GSM
-        characters at this point, as `get_sms_fragment_count` handles that separately.
+        Return the number of characters in the message, after sanitising the
+        content.
 
-        Also note that if values aren't provided, will calculate the raw length of the unsubstituted placeholders,
-        as in the message `foo ((placeholder))` has a length of 19.
+        Encoding as `utf-16-le` (little endian) instead of `utf-16` gives us
+        bytes without a preceding BOM (byte-order mark). Each code point in
+        UTF-16 takes 2 bytes, so we floor divide by 2 to get the number of
+        code points.
+
+        Note: if values are not provided, this will calculate the raw length of
+        the unsubstituted placeholders, for example `foo ((placeholder))` has
+        a length of 19.
         """
-        if self._content_count is None:
-            self._content_count = len(self._get_unsanitised_content())
-        return self._content_count
+        return len(self.content_with_placeholders_filled_in.encode("utf-16-le")) // 2
 
     @property
-    def content_count_without_prefix(self):
-        # subtract 2 extra characters to account for the colon and the space,
-        # added max zero in case the content is empty the __str__ methods strips the white space.
+    def content_count_without_prefix(self) -> int:
         if self.prefix:
-            return max((self.content_count - len(self.prefix) - 2), 0)
+            # See docstring of `content_count` for explanation
+            prefix_length = len(SanitiseSMS.encode(self.prefix).encode("utf-16-le")) // 2
+
+            # subtract 2 extra characters to account for the colon and the space,
+            # added max zero in case the content is empty the __str__ methods strips the white space.
+            return max((self.content_count - prefix_length - 2), 0)
         else:
             return self.content_count
 
     @property
-    def fragment_count(self):
-        content_with_placeholders = str(self)
+    def fragment_count(self) -> int:
+        if self.non_gsm_characters:
+            return 1 if self.content_count <= 70 else math.ceil(float(self.content_count) / 67)
 
-        # Extended GSM characters count as 2 characters
-        character_count = self.content_count + count_extended_gsm_chars(content_with_placeholders)
+        # Extended GSM characters count as 2 characters in GSM-7
+        character_count = self.content_count + self.count_extended_gsm_chars
 
-        return get_sms_fragment_count(character_count, non_gsm_characters(content_with_placeholders))
+        return 1 if character_count <= 160 else math.ceil(float(character_count) / 153)
 
-    def is_message_too_long(self):
+    @property
+    def count_of_characters_above_previous_fragment_boundary(self) -> int:
+        if self.fragment_count == 2:
+            boundary = 70 if self.non_gsm_characters else 160
+        else:
+            boundary = (67 if self.non_gsm_characters else 153) * (self.fragment_count - 1)
+
+        if self.non_gsm_characters:
+            return self.content_count - boundary
+
+        return self.content_count + self.count_extended_gsm_chars - boundary
+
+    @property
+    def non_gsm_characters(self) -> Set[str]:
+        """
+        Returns a set of all the non-GSM characters in a text. Does not include characters that we will
+        downgrade (eg ellipsis, en dash, etc). The presence of any other non-GSM characters will force
+        the entire SMS to be encoded with UCS-2.
+        """
+        return OrderedSet(self.unsanitised_content) - SanitiseSMS.CHARACTERS_NOT_REQUIRING_UNICODE
+
+    def is_message_too_long(self) -> bool:
         """
         Message is validated with out the prefix.
         We have decided to be lenient and let the message go over the character limit. The SMS provider will
@@ -254,10 +295,19 @@ class BaseSMSTemplate(Template):
         """
         return self.content_count_without_prefix > SMS_CHAR_COUNT_LIMIT
 
-    def is_message_empty(self):
+    @property
+    def count_of_characters_above_limit(self) -> int:
+        return max(0, self.content_count_without_prefix - SMS_CHAR_COUNT_LIMIT)
+
+    @property
+    def count_extended_gsm_chars(self) -> int:
+        return sum(map(self.unsanitised_content.count, SanitiseSMS.EXTENDED_GSM_CHARACTERS))
+
+    def is_message_empty(self) -> bool:
         return self.content_count_without_prefix == 0
 
-    def _get_unsanitised_content(self):
+    @cached_property
+    def unsanitised_content(self) -> str:
         # This is faster to call than SMSMessageTemplate.__str__ if all
         # you need to know is how many characters are in the message
         if self.values:
@@ -268,7 +318,7 @@ class BaseSMSTemplate(Template):
             Take(PlainTextField(self.content, values, html="passthrough"))
             .then(add_prefix, self.prefix)
             .then(remove_whitespace_before_punctuation)
-            .then(normalise_whitespace_and_newlines)
+            .then(normalise_whitespace_and_newlines, preserve_zero_width_joiner=True)
             .then(normalise_multiple_newlines)
             .then(str.strip)
             .then(str.replace, MAGIC_SEQUENCE, "")
@@ -276,19 +326,19 @@ class BaseSMSTemplate(Template):
 
 
 class SMSMessageTemplate(BaseSMSTemplate):
-    def __str__(self):
-        return sms_encode(self._get_unsanitised_content())
+    def __str__(self: BaseSMSTemplate) -> str:
+        return SanitiseSMS.encode(self.unsanitised_content)
 
 
 class SMSBodyPreviewTemplate(BaseSMSTemplate):
     def __init__(
         self,
-        template,
-        values=None,
+        template: Mapping[str, Any],
+        values: Mapping[str | None, Any] | None = None,
     ):
         super().__init__(template, values, show_prefix=False)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return Markup(
             Take(
                 Field(
@@ -298,28 +348,33 @@ class SMSBodyPreviewTemplate(BaseSMSTemplate):
                     redact_missing_personalisation=True,
                 )
             )
-            .then(sms_encode)
             .then(remove_whitespace_before_punctuation)
-            .then(normalise_whitespace_and_newlines)
+            .then(SanitiseSMS.encode)
+            .then(normalise_whitespace_and_newlines, preserve_zero_width_joiner=True)
             .then(normalise_multiple_newlines)
             .then(str.strip)
         )
 
 
 class SMSPreviewTemplate(BaseSMSTemplate):
-    jinja_template = template_env.get_template("sms_preview_template.jinja2")
+    jinja_template: jinja2_Template = template_env.get_template("sms_preview_template.jinja2")
+
+    show_recipient: bool
+    show_sender: bool
+    downgrade_non_sms_characters: bool
+    redact_missing_personalisation: bool
 
     def __init__(
         self,
-        template,
-        values=None,
-        prefix=None,
-        show_prefix=True,
-        sender=None,
-        show_recipient=False,
-        show_sender=False,
-        downgrade_non_sms_characters=True,
-        redact_missing_personalisation=False,
+        template: Mapping[str, Any],
+        values: Mapping[str | None, Any] | None = None,
+        prefix: str | None = None,
+        show_prefix: bool = True,
+        sender: Any = None,
+        show_recipient: bool = False,
+        show_sender: bool = False,
+        downgrade_non_sms_characters: bool = True,
+        redact_missing_personalisation: bool = False,
     ):
         self.show_recipient = show_recipient
         self.show_sender = show_sender
@@ -327,7 +382,7 @@ class SMSPreviewTemplate(BaseSMSTemplate):
         super().__init__(template, values, prefix, show_prefix, sender)
         self.redact_missing_personalisation = redact_missing_personalisation
 
-    def __str__(self):
+    def __str__(self) -> str:
         return Markup(
             self.jinja_template.render(
                 {
@@ -343,10 +398,10 @@ class SMSPreviewTemplate(BaseSMSTemplate):
                             redact_missing_personalisation=self.redact_missing_personalisation,
                         )
                     )
-                    .then(add_prefix, (escape_html(self.prefix) or None) if self.show_prefix else None)
-                    .then(sms_encode if self.downgrade_non_sms_characters else str)
+                    .then(add_prefix, escape_html(self.prefix))
                     .then(remove_whitespace_before_punctuation)
-                    .then(normalise_whitespace_and_newlines)
+                    .then(SanitiseSMS.encode if self.downgrade_non_sms_characters else str)
+                    .then(normalise_whitespace_and_newlines, preserve_zero_width_joiner=True)
                     .then(normalise_multiple_newlines)
                     .then(nl2br)
                     .then(
@@ -358,21 +413,25 @@ class SMSPreviewTemplate(BaseSMSTemplate):
         )
 
 
-class SubjectMixin:
-    def __init__(self, template, values=None, language: Literal["english", "welsh"] = "english", **kwargs):
-        welsh_subject = template.get("letter_welsh_subject", "")
+class BaseEmailTemplate(Template):
+    template_type: str = "email"
 
-        if language == "english":
-            self._subject = template["subject"]
-        else:
-            self._subject = welsh_subject
+    unsubscribe_link: str | None
+    _subject: str
 
-        self._welsh_subject = welsh_subject
-
+    def __init__(
+        self,
+        template: Mapping[str, Any],
+        values: Mapping[str | None, Any] | None = None,
+        unsubscribe_link: str | None = None,
+        **kwargs,
+    ):
+        self.unsubscribe_link = unsubscribe_link
+        self._subject = template["subject"]
         super().__init__(template, values, **kwargs)
 
     @property
-    def subject(self):
+    def subject(self) -> str:
         return Markup(
             Take(
                 Field(
@@ -387,31 +446,17 @@ class SubjectMixin:
         )
 
     @property
-    def placeholders(self):
-        welsh = set()
-        if self._welsh_subject:
-            welsh = get_placeholders(self._welsh_subject)
-        english = get_placeholders(self._subject)
-        all = welsh | english
-
-        return all | super().placeholders
-
-
-class BaseEmailTemplate(SubjectMixin, Template):
-    template_type = "email"
-
-    def __init__(self, template, values=None, unsubscribe_link=None, **kwargs):
-        self.unsubscribe_link = unsubscribe_link
-        super().__init__(template, values, **kwargs)
+    def placeholders(self) -> InsensitiveSet[str]:
+        return get_placeholders(self._subject) | super().placeholders
 
     @property
-    def content_with_unsubscribe_link(self):
+    def content_with_unsubscribe_link(self) -> str:
         if self.unsubscribe_link:
             return f"{self.content}\n\n---\n\n[Unsubscribe from these emails]({self.unsubscribe_link})"
         return self.content
 
     @property
-    def html_body(self):
+    def html_body(self) -> str:
         return (
             Take(
                 Field(
@@ -430,10 +475,10 @@ class BaseEmailTemplate(SubjectMixin, Template):
         )
 
     @property
-    def content_size_in_bytes(self):
+    def content_size_in_bytes(self) -> int:
         return len(self.content_with_placeholders_filled_in.encode("utf8"))
 
-    def is_message_too_long(self):
+    def is_message_too_long(self) -> bool:
         """
         SES rejects email messages bigger than 10485760 bytes (just over 10 MB per message (after base64 encoding)):
         https://docs.aws.amazon.com/ses/latest/DeveloperGuide/quotas.html#limits-message
@@ -468,7 +513,7 @@ class BaseEmailTemplate(SubjectMixin, Template):
 
 
 class PlainTextEmailTemplate(BaseEmailTemplate):
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             Take(Field(self.content_with_unsubscribe_link, self.values, html="passthrough", markdown_lists=True))
             .then(unlink_govuk_escaped)
@@ -482,7 +527,7 @@ class PlainTextEmailTemplate(BaseEmailTemplate):
         )
 
     @property
-    def subject(self):
+    def subject(self) -> str:
         return Markup(
             Take(
                 Field(
@@ -498,24 +543,33 @@ class PlainTextEmailTemplate(BaseEmailTemplate):
 
 
 class HTMLEmailTemplate(BaseEmailTemplate):
-    jinja_template = template_env.get_template("email_template_nl.jinja2")
+    jinja_template: jinja2_Template = template_env.get_template("email_template_nl.jinja2")
 
-    PREHEADER_LENGTH_IN_CHARACTERS = 256
+    PREHEADER_LENGTH_IN_CHARACTERS: int = 256
+
+    govuk_banner: bool
+    complete_html: bool
+    brand_logo: str | None
+    brand_text: str | None
+    brand_colour: str | None
+    brand_banner: bool
+    brand_alt_text: Any
+    rebrand: bool
 
     def __init__(
         self,
-        template,
-        values=None,
-        govuk_banner=False,
-        complete_html=True,
-        brand_logo=None,
-        brand_text=None,
-        brand_colour=None,
-        brand_banner=False,
+        template: Mapping[str, Any],
+        values: Mapping[str | None, Any] | None = None,
+        govuk_banner: bool = False,
+        complete_html: bool = True,
+        brand_logo: str | None = None,
+        brand_text: str | None = None,
+        brand_colour: str | None = None,
+        brand_banner: bool = False,
         brand_alt_text=None,
         brand_height=None,
         brand_alignment=None,
-        rebrand=False,
+        rebrand: bool = False,
         asset_path="https://static.notifynl.nl/",
         **kwargs,
     ):
@@ -533,7 +587,7 @@ class HTMLEmailTemplate(BaseEmailTemplate):
         self.asset_path = asset_path
 
     @property
-    def preheader(self):
+    def preheader(self) -> str:
         return " ".join(
             Take(
                 Field(
@@ -551,21 +605,21 @@ class HTMLEmailTemplate(BaseEmailTemplate):
             .split()
         )[: self.PREHEADER_LENGTH_IN_CHARACTERS].strip()
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.jinja_template.render(
             {
                 "subject": self.subject,
                 "body": self.html_body,
                 "preheader": self.preheader,
                 "govuk_banner": self.govuk_banner,
-                "complete_html": self.complete_html,
-                "brand_logo": self.brand_logo,
-                "brand_text": self.brand_text,
-                "brand_colour": self.brand_colour,
                 "brand_banner": self.brand_banner,
-                "brand_alt_text": self.brand_alt_text,
+                "complete_html": self.complete_html,
+                "brand_logo": escape_html(self.brand_logo, quote=True),
+                "brand_text": escape_html(self.brand_text, quote=True),
+                "brand_colour": escape_html(self.brand_colour, quote=True),
+                "brand_alt_text": escape_html(self.brand_alt_text, quote=True),
                 "brand_height": self.brand_height,
-                "brand_alignment": self.brand_alignment,
+                "brand_alignment": escape_html(self.brand_alignment, quote=True),
                 "rebrand": self.rebrand,
                 "asset_path": self.asset_path,
             }
@@ -580,43 +634,56 @@ def force_single_line_contact_block(value: str) -> str:
     return ", ".join(line.strip() for line in value.splitlines() if line.strip())
 
 
-class BaseLetterTemplate(SubjectMixin, Template):
-    template_type = "letter"
-    max_page_count = LETTER_MAX_PAGE_COUNT
-    max_sheet_count = LETTER_MAX_PAGE_COUNT // 2
+class BaseLetterTemplate(Template):
+    template_type: str = "letter"
+    max_page_count: int = LETTER_MAX_PAGE_COUNT
+    max_sheet_count: int = LETTER_MAX_PAGE_COUNT // 2
 
-    address_block = "\n".join(f"(({line.replace('_', ' ')}))" for line in address_lines_1_to_6_keys)
+    address_block: str = "\n".join(f"(({line.replace('_', ' ')}))" for line in address_lines_1_to_6_keys)
+
+    contact_block: str
+    _subject: str
+    _welsh_subject: str
+    welsh_content: str | None
+    admin_base_url: str
+    logo_file_name: str | None
+    language: Literal["english", "welsh"]
+    includes_first_page: bool
+    _date: datetime.date
 
     def __init__(
         self,
-        template,
-        values=None,
-        contact_block=None,
-        admin_base_url="http://localhost:6012",
-        logo_file_name=None,
-        redact_missing_personalisation=False,
-        date: datetime | None = None,
-        language="english",
+        template: Mapping[str, Any],
+        values: Mapping[str | None, Any] | None = None,
+        contact_block: str | None = None,
+        admin_base_url: str = "http://localhost:6012",
+        logo_file_name: str | None = None,
+        redact_missing_personalisation: bool = False,
+        date: datetime.datetime | None = None,
+        language: Literal["english", "welsh"] = "english",
         includes_first_page: bool = True,
         letter_address_placement: str = "60mm",
     ):
         self.contact_block = (contact_block or "").strip()
-        super().__init__(
-            template, values, redact_missing_personalisation=redact_missing_personalisation, language=language
-        )
+        self._subject = template["subject"]
+        self._welsh_subject = template.get("letter_welsh_subject", "")
+        self.welsh_content = template.get("letter_welsh_content", None)
+
+        super().__init__(template, values, redact_missing_personalisation=redact_missing_personalisation)
         self.admin_base_url = admin_base_url
         self.logo_file_name = logo_file_name
         self.date = date
         self.language = language
         self.letter_address_placement = letter_address_placement
-        if language == "english":
-            self.content = template["content"]
-        else:
-            self.content = template.get("letter_welsh_content", "")
+
+        if language == "welsh":
+            self.content = self.welsh_content
+            self._subject = self._welsh_subject
+
         self.includes_first_page = includes_first_page
 
     @property
-    def subject(self):
+    def subject(self) -> str:
         return (
             Take(
                 Field(
@@ -631,15 +698,17 @@ class BaseLetterTemplate(SubjectMixin, Template):
         )
 
     @property
-    def placeholders(self):
-        return get_placeholders(self.contact_block) | super().placeholders
+    def placeholders(self) -> InsensitiveSet[str]:
+        return (
+            get_placeholders(self.contact_block)
+            | get_placeholders(self._welsh_subject)
+            | get_placeholders(self.welsh_content)
+            | get_placeholders(self._subject)
+            | super().placeholders
+        )
 
     @property
-    def too_many_pages(self):
-        return self.page_count > self.max_page_count
-
-    @property
-    def postal_address(self):
+    def postal_address(self) -> PostalAddress:
         return PostalAddress.from_personalisation(InsensitiveDict(self.values))
 
     def has_qr_code_with_too_much_data(self) -> QrCodeTooLong | None:
@@ -652,22 +721,24 @@ class BaseLetterTemplate(SubjectMixin, Template):
         return None
 
     @property
-    def _address_block(self):
+    def _address_block(self) -> Sequence[str]:
         if self.postal_address.has_enough_lines and not self.postal_address.has_too_many_lines:
             return self.postal_address.normalised_lines
 
-        if "address line 6" not in self.values and "postcode" in self.values:
-            self.values["address line 6"] = self.values["postcode"]
+        values = dict(self.values)
+
+        if "address line 6" not in values and "postcode" in values:
+            values["address line 6"] = values["postcode"]
 
         return Field(
             self.address_block,
-            self.values,
+            values,
             html="escape",
             with_brackets=False,
         ).splitlines()
 
     @property
-    def _contact_block(self):
+    def _contact_block(self) -> str:
         return (
             Take(
                 Field(
@@ -689,8 +760,8 @@ class BaseLetterTemplate(SubjectMixin, Template):
         return self._date.strftime(f"%-d {month} %Y")
 
     @date.setter
-    def date(self, value: datetime | None):
-        self._date = utc_string_to_aware_gmt_datetime(value or datetime.now(UTC)).date()
+    def date(self, value: datetime.datetime | None):
+        self._date = utc_string_to_aware_gmt_datetime(value or datetime.datetime.now(datetime.UTC)).date()
 
     @property
     def _personalised_content(self) -> Field:
@@ -703,7 +774,7 @@ class BaseLetterTemplate(SubjectMixin, Template):
         )
 
     @property
-    def _message(self):
+    def _message(self) -> str:
         return (
             Take(self._personalised_content)
             .then(add_trailing_newline)
@@ -724,10 +795,10 @@ class BaseLetterTemplate(SubjectMixin, Template):
 
 
 class LetterPreviewTemplate(BaseLetterTemplate):
-    jinja_template = template_env.get_template("letter_pdf_nl/print.jinja2")
+    jinja_template: jinja2_Template = template_env.get_template("letter_pdf_nl/print.jinja2")
 
     @property
-    def render_params(self):
+    def render_params(self) -> Mapping[str, Any]:
         return {
             "admin_base_url": self.admin_base_url,
             "logo_file_name": self.logo_file_name,
@@ -744,23 +815,25 @@ class LetterPreviewTemplate(BaseLetterTemplate):
             "letter_address_placement": self.letter_address_placement,
         }
 
-    def __str__(self):
+    def __str__(self) -> str:
         return Markup(self.jinja_template.render(self.render_params))
 
 
 class LetterPrintTemplate(LetterPreviewTemplate):
-    jinja_template = template_env.get_template("letter_pdf_nl/print.jinja2")
+    jinja_template: jinja2_Template = template_env.get_template("letter_pdf_nl/print.jinja2")
+
+    includes_first_page: bool
 
     def __init__(
         self,
-        template,
-        values=None,
-        contact_block=None,
-        admin_base_url="http://localhost:6012",
-        logo_file_name=None,
-        redact_missing_personalisation=False,
-        date=None,
-        language="english",
+        template: Mapping[str, Any],
+        values: Mapping[str | None, Any] | None = None,
+        contact_block: str | None = None,
+        admin_base_url: str = "http://localhost:6012",
+        logo_file_name: str | None = None,
+        redact_missing_personalisation: bool = False,
+        date: datetime.datetime | None = None,
+        language: Literal["english", "welsh"] = "english",
         includes_first_page: bool = True,
         letter_address_placement: str = "60mm",
     ):
@@ -778,31 +851,14 @@ class LetterPrintTemplate(LetterPreviewTemplate):
         self.includes_first_page = includes_first_page
 
     @property
-    def render_params(self):
-        return super().render_params | {"includes_first_page": self.includes_first_page}
+    def render_params(self) -> Mapping[str, Any]:
+        return {
+            **super().render_params,
+            "includes_first_page": self.includes_first_page,
+        }
 
 
-def get_sms_fragment_count(character_count, non_gsm_characters):
-    if non_gsm_characters:
-        return 1 if character_count <= 70 else math.ceil(float(character_count) / 67)
-    else:
-        return 1 if character_count <= 160 else math.ceil(float(character_count) / 153)
-
-
-def non_gsm_characters(content):
-    """
-    Returns a set of all the non gsm characters in a text. this doesn't include characters that we will downgrade (eg
-    emoji, ellipsis, ñ, etc). This only includes welsh non gsm characters that will force the entire SMS to be encoded
-    with UCS-2.
-    """
-    return set(content) & set(SanitiseSMS.WELSH_NON_GSM_CHARACTERS)
-
-
-def count_extended_gsm_chars(content):
-    return sum(map(content.count, SanitiseSMS.EXTENDED_GSM_CHARACTERS))
-
-
-def do_nice_typography(value):
+def do_nice_typography(value: str) -> str:
     return (
         Take(value)
         .then(remove_whitespace_before_punctuation)
@@ -813,5 +869,5 @@ def do_nice_typography(value):
 
 
 @lru_cache(maxsize=1024)
-def get_placeholders(content):
+def get_placeholders(content: str) -> InsensitiveSet[str]:
     return Field(content).placeholders

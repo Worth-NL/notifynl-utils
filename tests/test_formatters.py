@@ -11,7 +11,6 @@ from notifications_utils.formatters import (
     remove_smart_quotes_from_email_addresses,
     remove_whitespace_before_punctuation,
     replace_hyphens_with_en_dashes,
-    sms_encode,
     strip_all_whitespace,
     strip_and_remove_obscure_whitespace,
     strip_unsupported_characters,
@@ -149,15 +148,10 @@ def test_sms_preview_adds_newlines():
     assert "<br>" in str(template)
 
 
-def test_sms_encode(mocker):
-    sanitise_mock = mocker.patch("notifications_utils.formatters.SanitiseSMS")
-    assert sms_encode("foo") == sanitise_mock.encode.return_value
-    sanitise_mock.encode.assert_called_once_with("foo")
-
-
 @pytest.mark.parametrize(
     "items, kwargs, expected_output",
     [
+        ([], {}, ""),
         ([1], {}, "‘1’"),
         ([1, 2], {}, "‘1’ and ‘2’"),
         ([1, 2, 3], {}, "‘1’, ‘2’ and ‘3’"),
@@ -167,6 +161,12 @@ def test_sms_encode(mocker):
         ([1, 2, 3], {"conjunction": "foo"}, "‘1’, ‘2’ foo ‘3’"),
         (["&"], {"before_each": "<i>", "after_each": "</i>"}, "<i>&amp;</i>"),
         ([1, 2, 3], {"before_each": "<i>", "after_each": "</i>"}, "<i>1</i>, <i>2</i> and <i>3</i>"),
+        pytest.param([], {"max_items_shown": 3}, "", marks=pytest.mark.xfail(raises=TypeError)),
+        ([1], {"max_items_shown": 1, "word_for_items_not_shown": "more"}, "‘1’"),
+        ([1, 2], {"max_items_shown": 1, "word_for_items_not_shown": "more"}, "‘1’ and more"),
+        ([1, 2, 3], {"max_items_shown": 2, "word_for_items_not_shown": "stuff"}, "‘1’ and stuff"),
+        ([1, 2, 3, 4], {"max_items_shown": 3, "word_for_items_not_shown": "others"}, "‘1’, ‘2’ and others"),
+        ([1, 2, 3], {"max_items_shown": 3, "word_for_items_not_shown": "foo"}, "‘1’, ‘2’ and ‘3’"),
     ],
 )
 def test_formatted_list(items, kwargs, expected_output):
@@ -231,6 +231,7 @@ def test_escaping_html_entities(
             "\n   \t    , word",
             "\n, word",
         ),
+        ("        \t    , 123", ", 123"),
     ],
 )
 def test_removing_whitespace_before_commas(dirty, clean):
@@ -246,10 +247,17 @@ def test_removing_whitespace_before_commas(dirty, clean):
             "\n   \t    . word",
             "\n. word",
         ),
+        ("        \t    . 123", ". 123"),
     ],
 )
 def test_removing_whitespace_before_full_stops(dirty, clean):
     assert remove_whitespace_before_punctuation(dirty) == clean
+
+
+def test_remove_whitespace_before_punctuation_scalability():
+    # this test would never complete if remove_whitespace_before_punctuation
+    # were still vulnerable to such a ReDoS
+    remove_whitespace_before_punctuation("a" + (" " * 1_000_000) + "a")
 
 
 @pytest.mark.parametrize(
@@ -307,6 +315,10 @@ def test_smart_quotes(dumb, smart):
             "em – dash",
         ),
         (
+            " \t\n   — dash",
+            " – dash",
+        ),
+        (
             "already\u0020–\u0020correct",  # \u0020 is a normal space character
             "already\u0020–\u0020correct",
         ),
@@ -318,6 +330,10 @@ def test_smart_quotes(dumb, smart):
 )
 def test_en_dashes(nasty, nice):
     assert replace_hyphens_with_en_dashes(nasty) == nice
+
+
+def test_en_dashes_scalability():
+    replace_hyphens_with_en_dashes("a" + (" " * 1_000_000) + "a")
 
 
 def test_unicode_dash_lookup():

@@ -3,6 +3,7 @@ import os
 from time import process_time
 from unittest import mock
 
+import html5lib
 import pytest
 from bs4 import BeautifulSoup
 from freezegun import freeze_time
@@ -21,9 +22,10 @@ from notifications_utils.template import (
     SMSBodyPreviewTemplate,
     SMSMessageTemplate,
     SMSPreviewTemplate,
-    SubjectMixin,
     Template,
 )
+
+html5parser = html5lib.HTMLParser()
 
 
 @pytest.mark.parametrize(
@@ -134,6 +136,38 @@ def test_brand_data_shows(brand_logo, brand_text, brand_colour):
         assert brand_text not in email
     if brand_colour:
         assert f'bgcolor="{brand_colour}"' in email
+
+
+@pytest.mark.parametrize(
+    "template_instance",
+    (
+        # With image and alt text
+        HTMLEmailTemplate(
+            {"content": "hello world", "subject": "", "template_type": "email"},
+            brand_banner=True,
+            govuk_banner=False,
+            brand_logo='http://example.com/image.png"> <blink>',
+            brand_colour='"> <blink> <td',
+            brand_alt_text='"> <blink> <img src="http://example.com/image.png"',
+        ),
+        # With text banner and no alt text
+        HTMLEmailTemplate(
+            {"content": "hello world", "subject": "", "template_type": "email"},
+            brand_banner=True,
+            govuk_banner=False,
+            brand_text="<blink>",
+            brand_colour='"> <blink> <td',
+        ),
+    ),
+)
+def test_brand_data_is_escaped(template_instance):
+    email = str(template_instance)
+
+    assert "<blink>" not in email
+    assert "&lt;blink&gt;" in email
+
+    html5parser.parse(email)
+    assert not html5parser.errors
 
 
 def test_alt_text_with_brand_text_and_govuk_banner_shown():
@@ -584,7 +618,7 @@ def test_sms_message_preview_hides_sender_by_default():
     assert SMSPreviewTemplate({"content": "foo", "template_type": "sms"}).show_sender is False
 
 
-@mock.patch("notifications_utils.template.sms_encode", return_value="downgraded")
+@mock.patch("notifications_utils.template.SanitiseSMS.encode", return_value="downgraded")
 @pytest.mark.parametrize(
     "template_class, extra_args, expected_call",
     (
@@ -604,7 +638,7 @@ def test_sms_messages_downgrade_non_sms(
     mock_sms_encode.assert_called_once_with(expected_call)
 
 
-@mock.patch("notifications_utils.template.sms_encode", return_value="downgraded")
+@mock.patch("notifications_utils.template.SanitiseSMS.encode", return_value="downgraded")
 def test_sms_messages_dont_downgrade_non_sms_if_setting_is_false(mock_sms_encode):
     template = str(
         SMSPreviewTemplate(
@@ -650,8 +684,8 @@ def test_sms_message_normalises_newlines(content):
 )
 def test_phone_templates_normalise_whitespace(template_class):
     content = "  Hi\u00a0there\u00a0 what's\u200d up\t"
-    assert (
-        str(template_class({"content": content, "template_type": template_class.template_type})) == "Hi there what's up"
+    assert str(template_class({"content": content, "template_type": template_class.template_type})) == (
+        "Hi there what's\u200d up"
     )
 
 
@@ -916,11 +950,16 @@ def test_letter_template_detects_all_placeholders_in_both_english_and_welsh_subj
             "subject": "Getting ((allowance_type))",
             "letter_welsh_subject": "Cael ((allowance_type_cy))",
             "template_type": "letter",
-        }
+        },
+        contact_block="((phone_number))",
     )
 
-    assert template.placeholders == OrderedSet(
-        ["allowance_type_cy", "allowance_type", "document_type_cy", "document_type"]
+    assert tuple(template.placeholders) == (
+        "phone_number",
+        "allowance_type_cy",
+        "document_type_cy",
+        "allowance_type",
+        "document_type",
     )
 
 
@@ -953,13 +992,13 @@ def test_subject_line_gets_applied_to_correct_template_types():
         PlainTextEmailTemplate,
         LetterPreviewTemplate,
     ]:
-        assert issubclass(cls, SubjectMixin)
+        assert hasattr(cls, "subject")
     for cls in [
         SMSBodyPreviewTemplate,
         SMSMessageTemplate,
         SMSPreviewTemplate,
     ]:
-        assert not issubclass(cls, SubjectMixin)
+        assert not hasattr(cls, "subject")
 
 
 @pytest.mark.parametrize(
@@ -1061,60 +1100,300 @@ def test_character_count_for_sms_templates(
 
 
 @pytest.mark.parametrize(
-    "msg, expected_sms_fragment_count",
+    "template_class",
     [
-        ("à" * 71, 1),  # welsh character in GSM
-        ("à" * 160, 1),
-        ("à" * 161, 2),
-        ("à" * 306, 2),
-        ("à" * 307, 3),
-        ("à" * 612, 4),
-        ("à" * 613, 5),
-        ("à" * 765, 5),
-        ("à" * 766, 6),
-        ("à" * 918, 6),
-        ("à" * 919, 7),
-        ("ÿ" * 70, 1),  # welsh character not in GSM, so send as unicode
-        ("ÿ" * 71, 2),
-        ("ÿ" * 134, 2),
-        ("ÿ" * 135, 3),
-        ("ÿ" * 268, 4),
-        ("ÿ" * 269, 5),
-        ("ÿ" * 402, 6),
-        ("ÿ" * 403, 7),
-        ("à" * 70 + "ÿ", 2),  # just one non-gsm character means it's sent at unicode
-        ("🚀" * 160, 1),  # non-welsh unicode characters are downgraded to gsm, so are only one fragment long
+        SMSMessageTemplate,
+        SMSPreviewTemplate,
+        SMSBodyPreviewTemplate,
     ],
 )
-def test_sms_fragment_count_accounts_for_unicode_and_welsh_characters(
-    msg,
-    expected_sms_fragment_count,
+@pytest.mark.parametrize(
+    "content, expected_count, expected_message",
+    [
+        (
+            # Short Arabic (RTL)
+            "مرحبا",
+            5,
+            "مرحبا",
+        ),
+        (
+            # Arabic sentence (RTL)
+            "تم إرسال رسالتك",
+            15,
+            "تم إرسال رسالتك",
+        ),
+        (
+            # Arabic + Eastern Arabic numerals
+            "اختبار ١٢٣",
+            10,
+            "اختبار ١٢٣",
+        ),
+        (
+            # Mixed LTR + RTL
+            "Hello مرحبا",
+            11,
+            "Hello مرحبا",
+        ),
+        (
+            # Complex CJK (U+20BB7)
+            "𠮷",
+            2,
+            "𠮷",
+        ),
+        (
+            # Complex char in Latin context
+            "Test 𠮷 char",
+            12,
+            "Test 𠮷 char",
+        ),
+        (
+            # CJK Extension F (U+2F9F4)
+            "嶲",
+            2,
+            "嶲",
+        ),
+        (
+            # Welsh (existing allowed set)
+            "Croeso Ŵ",
+            8,
+            "Croeso Ŵ",
+        ),
+        (
+            # Polish diacritics (ń)
+            "Dzień dobry",
+            11,
+            "Dzień dobry",
+        ),
+        (
+            # Devanagari (script used in Hindi, among other languages)
+            "नमस्ते",
+            6,
+            "नमस्ते",
+        ),
+        (
+            # Simplified Chinese
+            "你好",
+            2,
+            "你好",
+        ),
+        (
+            # Emoji (full Unicode)
+            "Test 😀",
+            7,
+            "Test 😀",
+        ),
+        (
+            # ZWJ family emoji (counts as multiple code points)
+            "👨‍👩‍👧‍👦",
+            11,
+            "👨‍👩‍👧‍👦",
+        ),
+        (
+            # GSM baseline (control — should be 160-char encoding)
+            "Your code is 123456",
+            19,
+            "Your code is 123456",
+        ),
+        (
+            # “Smart punctuation” vs GSM hyphen (en-dash U+2013)
+            "–",
+            1,
+            "-",  # Downgraded to hyphen
+        ),
+        (
+            # Polish quotation marks + ś, ć
+            '„Cześć"',
+            7,
+            '"Cześć"',  # Intial quotation mark downgraded to "
+        ),
+        (
+            # Arabic + English + CJK + emoji in one message
+            "مرحبا Test 𠮷 😀",
+            16,
+            "مرحبا Test 𠮷 😀",
+        ),
+        (
+            # En dash, em dash, curly quotes, ellipsis (all non-GSM-7 punctuation)
+            "– — “ ” …",
+            11,
+            '- - " " ...',  # Downgraded to ASCII equivalents
+        ),
+    ],
+)
+def test_character_count_for_unicode_sms_templates(
+    template_class,
+    content,
+    expected_count,
+    expected_message,
+    mocker,
 ):
-    template = SMSMessageTemplate({"content": msg, "template_type": "sms"})
-    assert template.fragment_count == expected_sms_fragment_count
+    template = template_class({"content": content, "template_type": "sms"})
+    assert template.content_count == expected_count, f"Wrong count ({content=}, {expected_count=})"
+    assert expected_message in str(template)
 
 
 @pytest.mark.parametrize(
-    "msg, expected_sms_fragment_count",
+    "template_class",
     [
-        # all extended GSM characters
-        ("^" * 81, 2),
-        # GSM characters plus extended GSM
-        ("a" * 158 + "|", 1),
-        ("a" * 159 + "|", 2),
-        ("a" * 304 + "[", 2),
-        ("a" * 304 + "[]", 3),
-        # Welsh character plus extended GSM
-        ("â" * 132 + "{", 2),
-        ("â" * 133 + "}", 3),
+        SMSMessageTemplate,
+        SMSPreviewTemplate,
     ],
 )
-def test_sms_fragment_count_accounts_for_extended_gsm_characters(
-    msg,
+def test_character_count_for_unicode_sms_template_with_unicode_prefix(template_class):
+    template = template_class({"content": "嶲", "template_type": "sms"}, prefix="👨‍👩‍👧‍👦")
+
+    assert "👨‍👩‍👧‍👦: 嶲" in str(template)
+
+    # 11 characters for prefix, 2 for colon and space, 2 for complex Chinese character
+    assert template.content_count == 15
+
+    # Just the complex Chinese character, which counts as 2 characters
+    assert template.content_count_without_prefix == 2
+
+
+def test_unicode_in_sms_body_preview_template():
+    template = SMSBodyPreviewTemplate({"content": "👨‍👩‍👧‍👦嶲", "template_type": "sms"})
+    assert str(template) == "👨‍👩‍👧‍👦嶲"
+    assert template.content_count == 13
+
+
+@pytest.mark.parametrize(
+    "template_content, expected_sms_fragment_count, expected_count_of_characters_above_previous_fragment_boundary",
+    [
+        ("à" * 71, 1, 71),  # welsh character in GSM
+        ("à" * 160, 1, 160),
+        ("à" * 161, 2, 1),
+        ("à" * 306, 2, 146),
+        ("à" * 307, 3, 1),
+        ("à" * 612, 4, 153),
+        ("à" * 613, 5, 1),
+        ("à" * 765, 5, 153),
+        ("à" * 766, 6, 1),
+        ("à" * 918, 6, 153),
+        ("à" * 919, 7, 1),
+        ("ÿ" * 70, 1, 70),  # welsh character not in GSM, so send as unicode
+        ("ÿ" * 71, 2, 1),
+        ("ÿ" * 134, 2, 64),
+        ("ÿ" * 135, 3, 1),
+        ("ÿ" * 268, 4, 67),
+        ("ÿ" * 269, 5, 1),
+        ("ÿ" * 402, 6, 67),
+        ("ÿ" * 403, 7, 1),
+        ("à" * 70 + "ÿ", 2, 1),  # just one non-gsm character means it's sent at unicode
+        ("🚀" * 35, 1, 70),  # An emoji takes 2 characters and is sent as unicode
+        ("🚀" * 36, 2, 2),
+    ],
+)
+@pytest.mark.parametrize(
+    "template_class",
+    (
+        SMSMessageTemplate,
+        SMSPreviewTemplate,
+    ),
+)
+def test_sms_fragment_count_accounts_for_unicode_and_welsh_characters(
+    template_class,
+    template_content,
     expected_sms_fragment_count,
+    expected_count_of_characters_above_previous_fragment_boundary,
 ):
-    template = SMSMessageTemplate({"content": msg, "template_type": "sms"})
+    template = template_class({"content": template_content, "template_type": "sms"})
     assert template.fragment_count == expected_sms_fragment_count
+    assert template.count_of_characters_above_previous_fragment_boundary == (
+        expected_count_of_characters_above_previous_fragment_boundary
+    )
+
+
+@pytest.mark.parametrize(
+    "template_content, expected_sms_fragment_count, expected_count_of_characters_above_previous_fragment_boundary",
+    [
+        # all extended GSM characters
+        ("^" * 80, 1, 160),
+        ("^" * 81, 2, 2),
+        # GSM characters plus extended GSM
+        ("a" * 158 + "|", 1, 160),
+        ("a" * 159 + "|", 2, 1),
+        ("a" * 304 + "[", 2, 146),
+        ("a" * 304 + "[]", 3, 2),
+        # Welsh character plus extended GSM
+        ("â" * 69 + "{", 1, 70),
+        ("â" * 70 + "{", 2, 1),
+        ("â" * 133 + "}", 2, 64),
+        ("â" * 134 + "}", 3, 1),
+        # Non-GSM or extended characters in placeholder, not content
+        ("a" * 160 + "(( placeholder with â ))", 1, 160),
+        ("a" * 160 + "(( placeholder with | ))", 1, 160),
+    ],
+)
+@pytest.mark.parametrize(
+    "template_class",
+    (
+        SMSMessageTemplate,
+        SMSPreviewTemplate,
+    ),
+)
+def test_sms_fragment_count_accounts_for_extended_gsm_characters(
+    template_class,
+    template_content,
+    expected_sms_fragment_count,
+    expected_count_of_characters_above_previous_fragment_boundary,
+):
+    template = template_class({"content": template_content, "template_type": "sms"})
+    assert template.fragment_count == expected_sms_fragment_count
+    assert template.count_of_characters_above_previous_fragment_boundary == (
+        expected_count_of_characters_above_previous_fragment_boundary
+    )
+
+
+@pytest.mark.parametrize(
+    "template_content, expected_non_gsm_characters",
+    [
+        ("à", set()),  # Welsh character in GSM
+        ("ÿ", {"ÿ"}),  # Welsh character not in GSM, so send as unicode
+        ("ÿŴ", {"ÿ", "Ŵ"}),  # Each character only returned once
+        ("àÿ", {"ÿ"}),  # Only non-GSM characters returned
+        ("🚀", set("🚀")),  # No emoji in GSM
+        ("…", set()),  # HORIZONTAL ELLIPSIS (U+2026) downgraded to ..., which is 3 GSM characters
+        ("ŸẄÜÖÏËÄ", OrderedSet("ŸẄÏË")),  # Content order is preserved
+        ("The quick brown fox jumps over the lazy dog", set()),
+        ("The “quick” brown fox has some downgradable characters\xa0", set()),
+        ("Need more 🐮🔔", {"🐮", "🔔"}),
+        ("Ŵêlsh chârâctêrs ârê cômpâtîblê wîth SanitiseSMS", {"Ŵ", "ê", "â", "ô", "î"}),
+        ("Lots of GSM chars that arent ascii compatible:\n\r€", set()),
+        ("Obscure\u00a0whitespace\u202fcharacters which \u2028we \u2029normalise o\u180eut", set()),
+    ],
+)
+@pytest.mark.parametrize(
+    "template_class",
+    (
+        SMSMessageTemplate,
+        SMSPreviewTemplate,
+    ),
+)
+def test_non_gsm_characters_in_sms(
+    template_class,
+    template_content,
+    expected_non_gsm_characters,
+):
+    template = template_class({"content": template_content, "template_type": "sms"})
+    assert template.non_gsm_characters == expected_non_gsm_characters
+
+    template = template_class({"content": "GSM-7 only", "template_type": "sms"}, prefix=template_content)
+    assert template.non_gsm_characters == expected_non_gsm_characters
+
+
+@pytest.mark.parametrize(
+    "template_class",
+    (
+        SMSMessageTemplate,
+        SMSPreviewTemplate,
+    ),
+)
+def test_non_gsm_characters_in_placeholder(
+    template_class,
+):
+    template = template_class({"content": "((ÿ🚀))", "template_type": "sms"})
+    assert template.non_gsm_characters == set()
 
 
 @pytest.mark.parametrize(
@@ -1250,8 +1529,7 @@ def test_is_message_empty_email_and_letter_templates_tries_not_to_count_chars(
             "sms",
             {},
             [
-                mock.call("content"),  # This is to get the placeholders
-                mock.call("content", {}, html="passthrough"),
+                mock.call("content"),
             ],
         ),
         (
@@ -1330,11 +1608,9 @@ def test_is_message_empty_email_and_letter_templates_tries_not_to_count_chars(
         ),
     ],
 )
-@mock.patch("notifications_utils.template.Field.__init__", return_value=None)
-@mock.patch("notifications_utils.template.Field.__str__", return_value="1\n2\n3\n4\n5\n6\n7\n8")
+@mock.patch("notifications_utils.template.Field")
 def test_templates_handle_html_and_redacting(
-    mock_field_str,
-    mock_field_init,
+    mock_field,
     template_class,
     template_type,
     extra_args,
@@ -1343,7 +1619,7 @@ def test_templates_handle_html_and_redacting(
     assert str(
         template_class({"content": "content", "subject": "subject", "template_type": template_type}, **extra_args)
     )
-    assert mock_field_init.call_args_list == expected_field_calls
+    assert mock_field.call_args_list == expected_field_calls
 
 
 @pytest.mark.parametrize(
@@ -1354,7 +1630,7 @@ def test_templates_handle_html_and_redacting(
             "email",
             {},
             [
-                mock.call("\n\ncontent"),
+                mock.call("\n\ncontent…"),
                 mock.call(Markup("subject")),
                 mock.call(Markup("subject")),
             ],
@@ -1366,9 +1642,9 @@ def test_templates_handle_html_and_redacting(
             [
                 mock.call(Markup("subject")),
                 mock.call(
-                    '<p style="Margin: 0 0 20px 0; font-size: 19px; line-height: 25px; color: #0B0C0C;">content</p>'
+                    '<p style="Margin: 0 0 20px 0; font-size: 19px; line-height: 25px; color: #0B0C0C;">content…</p>'
                 ),
-                mock.call("\n\ncontent"),
+                mock.call("\n\ncontent…"),
                 mock.call(Markup("subject")),
                 mock.call(Markup("subject")),
             ],
@@ -1378,7 +1654,7 @@ def test_templates_handle_html_and_redacting(
             "sms",
             {},
             [
-                mock.call("content"),
+                mock.call("content…"),
             ],
         ),
         (
@@ -1386,7 +1662,7 @@ def test_templates_handle_html_and_redacting(
             "sms",
             {},
             [
-                mock.call("content"),
+                mock.call("content…"),
             ],
         ),
         (
@@ -1394,7 +1670,7 @@ def test_templates_handle_html_and_redacting(
             "sms",
             {},
             [
-                mock.call("content"),
+                mock.call("content…"),
             ],
         ),
         (
@@ -1403,7 +1679,7 @@ def test_templates_handle_html_and_redacting(
             {"contact_block": "www.gov.uk"},
             [
                 mock.call(Markup("subject")),
-                mock.call(Markup("<p>content</p>")),
+                mock.call(Markup("<p>content…</p>")),
                 mock.call(Markup("www.gov.uk")),
                 mock.call(Markup("subject")),
                 mock.call(Markup("subject")),
@@ -1420,7 +1696,7 @@ def test_templates_remove_whitespace_before_punctuation(
     expected_remove_whitespace_calls,
 ):
     template = template_class(
-        {"content": "content", "subject": "subject", "template_type": template_type}, **extra_args
+        {"content": "content…", "subject": "subject", "template_type": template_type}, **extra_args
     )
 
     assert str(template)
@@ -1748,13 +2024,35 @@ def test_lists_in_combination_with_other_elements_in_letters(markdown, expected)
         SMSPreviewTemplate,
     ],
 )
-def test_message_too_long_ignoring_prefix(template_class):
-    body = ("b" * 917) + "((foo))"
+@pytest.mark.parametrize(
+    "character, repeat_character_count, expected_count_above_limit",
+    (
+        # Character in GSM-7
+        ("b", 917, 1),
+        ("b", 1_000, 84),
+        # Character not in GSM-7 and encodes to a single unicode codepoint
+        ("Ŵ", 917, 1),
+        ("Ŵ", 1_000, 84),
+        # Character not in GSM-7 and encodes to multiple unicode codepoints (🏳 + joiner + 🌈)
+        ("🏳️‍🌈", 917, 4_586),
+        ("🏳️‍🌈", 1_000, 5_084),
+    ),
+)
+def test_message_too_long_ignoring_prefix(
+    template_class,
+    character,
+    repeat_character_count,
+    expected_count_above_limit,
+):
+    template_content = (character * repeat_character_count) + "((foo))"
     template = template_class(
-        {"content": body, "template_type": template_class.template_type}, prefix="a" * 100, values={"foo": "cc"}
+        {"content": template_content, "template_type": template_class.template_type},
+        prefix="a" * 100,
+        values={"foo": "cc"},
     )
-    # content length is prefix + 919 characters (more than limit of 918)
+    # content length is length of template_content plus personalisation (more than limit of 918)
     assert template.is_message_too_long() is True
+    assert template.count_of_characters_above_limit == expected_count_above_limit
 
 
 @pytest.mark.parametrize(
@@ -1764,15 +2062,23 @@ def test_message_too_long_ignoring_prefix(template_class):
         SMSPreviewTemplate,
     ],
 )
-def test_message_is_not_too_long_ignoring_prefix(template_class):
-    body = ("b" * 917) + "((foo))"
+@pytest.mark.parametrize(
+    "repeat_character_count",
+    (
+        1,
+        917,
+    ),
+)
+def test_message_is_not_too_long_ignoring_prefix(template_class, repeat_character_count):
+    body = ("b" * repeat_character_count) + "((foo))"
     template = template_class(
         {"content": body, "template_type": template_class.template_type},
         prefix="a" * 100,
         values={"foo": "c"},
     )
-    # content length is prefix + 918 characters (not more than limit of 918)
+    # content length (ignoring prefix) is up to 918 characters (not more than limit of 918)
     assert template.is_message_too_long() is False
+    assert template.count_of_characters_above_limit == 0
 
 
 @pytest.mark.parametrize(
@@ -1787,6 +2093,8 @@ def test_message_too_long_limit_bigger_or_nonexistent_for_non_sms_templates(temp
     body = "a" * 1000
     template = template_class({"content": body, "subject": "foo", "template_type": template_type}, **kwargs)
     assert template.is_message_too_long() is False
+    with pytest.raises(AttributeError):
+        assert template.count_of_characters_above_limit
 
 
 @pytest.mark.parametrize(
@@ -2144,7 +2452,7 @@ def test_image_not_present_if_no_logo(template_class):
             SMSPreviewTemplate,
             (
                 "\n\n"
-                '<div class="sms-message-wrapper">\n'
+                '<div class="sms-message-wrapper" dir="auto">\n'
                 "  The quick brown fox.<br><br>Jumps over the lazy dog.<br>Single linebreak above.\n"
                 "</div>"
             ),

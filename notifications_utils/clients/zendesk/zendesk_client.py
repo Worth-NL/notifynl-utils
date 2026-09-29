@@ -8,6 +8,7 @@ from urllib.parse import urlencode
 import requests
 from flask import current_app
 
+from notifications_utils.json import RelaxedContainerJSONEncoder as RCJSONEncoder
 from notifications_utils.timezones import local_timezone
 
 
@@ -72,7 +73,10 @@ class ZendeskClient:
 
     def send_ticket_to_zendesk(self, ticket):
         response = self.requests_session.post(
-            self.ZENDESK_TICKET_URL, json=ticket.request_data, auth=(f"{self.NOTIFY_ZENDESK_EMAIL}/token", self.api_key)
+            self.ZENDESK_TICKET_URL,
+            data=RCJSONEncoder().encode(ticket.request_data),
+            auth=(f"{self.NOTIFY_ZENDESK_EMAIL}/token", self.api_key),
+            headers={"Content-type": "application/json"},
         )
 
         if response.status_code != 201:
@@ -138,7 +142,7 @@ class ZendeskClient:
         due_at: datetime.datetime | None = None,
         status: NotifySupportTicketStatus | None = None,
     ):
-        data = {"ticket": {}}
+        data: dict[str, dict] = {"ticket": {}}
 
         if comment:
             data["ticket"]["comment"] = {
@@ -160,8 +164,9 @@ class ZendeskClient:
         update_url = self.ZENDESK_UPDATE_TICKET_URL.format(ticket_id=ticket_id)
         response = self.requests_session.put(
             update_url,
-            json=data,
+            data=RCJSONEncoder().encode(data),
             auth=(f"{self.NOTIFY_ZENDESK_EMAIL}/token", self.api_key),
+            headers={"Content-type": "application/json"},
         )
 
         if response.status_code != 200:
@@ -196,10 +201,8 @@ class NotifySupportTicket:
     TYPE_QUESTION = "question"
     TYPE_TASK = "task"
 
-    # Group: 3rd Line--Notify Support
-    NOTIFY_GROUP_ID = os.getenv("ZENDESK_GROUP_ID")
-    # Organization: GDS
-    NOTIFY_ORG_ID = os.getenv("ZENDESK_ORG_ID")
+    NOTIFY_GROUP_ID = os.getenv("ZENDESK_GROUP_ID")  # Group: 3rd Line--Notify Support
+    NOTIFY_ORG_ID = os.getenv("ZENDESK_ORG_ID")  # Organization: GDS
     NOTIFY_TICKET_FORM_ID = os.getenv("ZENDESK_TICKET_FORM_ID")
 
     def __init__(

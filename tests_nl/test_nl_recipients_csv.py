@@ -202,10 +202,11 @@ def test_errors_on_qr_codes_with_too_much_data():
     )
     assert recipients.has_errors is True
     assert len(list(recipients.rows_with_errors)) == 1
-    assert recipients.rows_as_list[0].has_error is False
-    assert recipients.rows_as_list[0].qr_code_too_long is None
-    assert recipients.rows_as_list[1].has_error is True
-    assert isinstance(recipients.rows_as_list[1].qr_code_too_long, QrCodeTooLong)
+    rows = list(recipients)
+    assert rows[0].has_error is False
+    assert rows[0].qr_code_too_long is None
+    assert rows[1].has_error is True
+    assert isinstance(rows[1].qr_code_too_long, QrCodeTooLong)
 
 
 @pytest.mark.parametrize(

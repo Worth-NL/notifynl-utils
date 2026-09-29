@@ -1,7 +1,13 @@
+import re
+
 import pytest
 
 from notifications_utils.recipient_validation.errors import InvalidPhoneError
-from notifications_utils.recipient_validation.phone_number import PhoneNumber, international_phone_info
+from notifications_utils.recipient_validation.phone_number import (
+    InternationalPhoneInfo,
+    PhoneNumber,
+    get_S7_protected_prefixes,
+)
 from notifications_utils.recipients import (
     allowed_to_send_to,
     format_recipient,
@@ -140,7 +146,7 @@ invalid_mobile_phone_numbers = (
 tv_numbers_phone_info_fixtures = [
     (
         "07700900010",
-        international_phone_info(
+        InternationalPhoneInfo(
             international=False,
             crown_dependency=False,
             country_prefix="44",
@@ -149,7 +155,7 @@ tv_numbers_phone_info_fixtures = [
     ),
     (
         "447700900020",
-        international_phone_info(
+        InternationalPhoneInfo(
             international=False,
             crown_dependency=False,
             country_prefix="44",
@@ -158,7 +164,7 @@ tv_numbers_phone_info_fixtures = [
     ),
     (
         "+447700900030",
-        international_phone_info(
+        InternationalPhoneInfo(
             international=False,
             crown_dependency=False,
             country_prefix="44",
@@ -170,7 +176,7 @@ tv_numbers_phone_info_fixtures = [
 international_phone_info_fixtures = [
     (
         "07723456789",
-        international_phone_info(
+        InternationalPhoneInfo(
             international=False,
             crown_dependency=False,
             country_prefix="44",  # UK
@@ -179,7 +185,7 @@ international_phone_info_fixtures = [
     ),
     (
         "07797800123",
-        international_phone_info(
+        InternationalPhoneInfo(
             international=True,
             crown_dependency=True,
             country_prefix="44",  # UK Crown dependency, so prefix same as UK
@@ -188,7 +194,7 @@ international_phone_info_fixtures = [
     ),
     (
         "20-12-1234-1234",
-        international_phone_info(
+        InternationalPhoneInfo(
             international=True,
             crown_dependency=False,
             country_prefix="20",  # Egypt
@@ -197,7 +203,7 @@ international_phone_info_fixtures = [
     ),
     (
         "00201212341234",
-        international_phone_info(
+        InternationalPhoneInfo(
             international=True,
             crown_dependency=False,
             country_prefix="20",  # Egypt
@@ -206,7 +212,7 @@ international_phone_info_fixtures = [
     ),
     (
         "16644913789",
-        international_phone_info(
+        InternationalPhoneInfo(
             international=True,
             crown_dependency=False,
             country_prefix="1664",  # Montserrat
@@ -215,7 +221,7 @@ international_phone_info_fixtures = [
     ),
     (
         "77234567890",
-        international_phone_info(
+        InternationalPhoneInfo(
             international=True,
             crown_dependency=False,
             country_prefix="7",  # Russia
@@ -224,7 +230,7 @@ international_phone_info_fixtures = [
     ),
     (
         "1-202-555-0104",
-        international_phone_info(
+        InternationalPhoneInfo(
             international=True,
             crown_dependency=False,
             country_prefix="1",  # USA
@@ -233,7 +239,7 @@ international_phone_info_fixtures = [
     ),
     (
         "+23052512345",
-        international_phone_info(
+        InternationalPhoneInfo(
             international=True,
             crown_dependency=False,
             country_prefix="230",  # Mauritius
@@ -241,6 +247,31 @@ international_phone_info_fixtures = [
         ),
     ),
 ]
+
+
+mock_S7_prefixes = (
+    "70346",
+    "703470",
+    "703477",
+    "70348",
+    "703490",
+    "7075",
+)
+
+
+@pytest.fixture(scope="function")
+def mock_get_S7_protected_prefixes(mocker):
+    return mocker.patch(
+        "notifications_utils.recipient_validation.phone_number.get_S7_protected_prefixes",
+        return_value=(
+            "70346",
+            "703470",
+            "703477",
+            "70348",
+            "703490",
+            "7075",
+        ),
+    )
 
 
 @pytest.mark.parametrize("phone_number", valid_international_phone_numbers)
@@ -411,9 +442,9 @@ class TestPhoneNumberClass:
     @pytest.mark.parametrize("phone_number, error_message", invalid_uk_mobile_phone_numbers)
     def test_rejects_invalid_uk_mobile_phone_numbers(self, phone_number, error_message):
         # problem is `invalid_uk_mobile_phone_numbers` also includes valid uk landlines
-        with pytest.raises(InvalidPhoneError):
+        with pytest.raises(InvalidPhoneError) as e:
             PhoneNumber(phone_number)
-        # assert e.value.code == InvalidPhoneError.Codes.INVALID_NUMBER
+        assert InvalidPhoneError.ERROR_MESSAGES[e.value.code] == error_message
 
     @pytest.mark.parametrize("phone_number", invalid_uk_landlines)
     def test_rejects_invalid_uk_landlines(self, phone_number):
@@ -453,6 +484,35 @@ class TestPhoneNumberClass:
             number = PhoneNumber(phone_number)
             number.validate(allow_international_number=True, allow_uk_landline=False)
         assert exc.value.code == InvalidPhoneError.Codes.NOT_A_UK_MOBILE
+
+    @pytest.mark.parametrize(
+        "phone_number, should_raise",
+        (
+            ("07000000000", False),
+            ("07011100876", False),
+            ("07034700000", True),
+            ("07034701000", True),
+            ("07034710000", False),
+            ("07034777777", True),
+            ("07074971099", False),
+            ("07075971077", True),
+            ("07999999999", False),
+            # non-uk number
+            ("+1 202-483-3000", False),
+        ),
+    )
+    @pytest.mark.parametrize("block_ofcom_protected_blocks", [True, False])
+    def test_PhoneNumber_rejects_valid_uk_mobiles_if_in_ofcom_protected_range(
+        self, phone_number, should_raise, block_ofcom_protected_blocks, mock_get_S7_protected_prefixes
+    ):
+        number = PhoneNumber(phone_number)
+        if should_raise and block_ofcom_protected_blocks:
+            with pytest.raises(InvalidPhoneError):
+                number.validate(
+                    allow_international_number=True, block_ofcom_protected_blocks=block_ofcom_protected_blocks
+                )
+        else:
+            number.validate(allow_international_number=True, block_ofcom_protected_blocks=block_ofcom_protected_blocks)
 
     @pytest.mark.parametrize("phone_number, expected_info", international_phone_info_fixtures)
     def test_get_international_phone_info(self, phone_number, expected_info):
@@ -542,7 +602,6 @@ class TestPhoneNumberClass:
         [
             ("(07417)4123456", InvalidPhoneError.Codes.TOO_LONG),
             ("(06)25123456", InvalidPhoneError.Codes.INVALID_NUMBER),
-            ("+00263 71123456", InvalidPhoneError.Codes.INVALID_NUMBER),
             ("+0065951123456", InvalidPhoneError.Codes.TOO_LONG),
             ("00129123456", InvalidPhoneError.Codes.INVALID_NUMBER),
             ("003570123456", InvalidPhoneError.Codes.INVALID_NUMBER),
@@ -624,6 +683,35 @@ class TestPhoneNumberClass:
         with pytest.raises(InvalidPhoneError) as exc:
             number.validate(allow_international_number=True, allow_uk_landline=False)
         assert exc.value.code == InvalidPhoneError.Codes.UNSUPPORTED_COUNTRY_CODE
+
+    @pytest.mark.parametrize(
+        "candidate_number,expected_result",
+        (
+            ("07000000000", False),
+            ("07011100876", False),
+            ("07034700000", True),
+            ("07034701000", True),
+            ("07034710000", False),
+            ("07034777777", True),
+            ("07074971099", False),
+            ("07075971077", True),
+            ("07999999999", False),
+            # non-uk number
+            ("+1 202-483-3000", False),
+        ),
+    )
+    def test_is_number_in_S7_protected_range(self, candidate_number, expected_result, mock_get_S7_protected_prefixes):
+        assert PhoneNumber(candidate_number).is_number_in_S7_protected_range() == expected_result
+
+
+def test_get_S7_protected_prefixes():
+    "Ensure our bundled data passes some sanity checks"
+    prefixes = get_S7_protected_prefixes()
+
+    assert prefixes
+    assert all(prefixes)
+    assert tuple(sorted(prefixes)) == prefixes
+    assert all(re.fullmatch(r"7\d+", s) for s in prefixes)
 
 
 def test_empty_phone_number_is_rejected_with_correct_v2_error_message():

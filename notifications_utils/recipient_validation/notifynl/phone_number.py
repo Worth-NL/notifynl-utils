@@ -44,7 +44,7 @@ class PhoneNumber(UkPhoneNumber):
     def is_international_number(self):
         if phonenumbers.region_code_for_number(self.number) == NL_CODE:
             return False
-        elif self._is_tv_number(self.number):
+        elif self.is_tv_number(self.number):
             return False
         else:
             return True
