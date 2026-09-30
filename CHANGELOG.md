@@ -14,6 +14,8 @@
 * `HTMLEmailTemplate` now HTML-escapes brand values (upstream 131.2.1), including NL's
   `brand_alignment`.
 * Fixed NL S3 folder helpers referencing `botocore` after upstream dropped that import.
+* NL `PhoneNumber.is_number_in_S7_protected_range()` always returns `False`: OFCOM's S7 list is UK-only,
+  and the inherited check matched Dutch 07x landlines (e.g. Den Haag 070) against UK prefixes.
 
 ## 101.3.2
 
