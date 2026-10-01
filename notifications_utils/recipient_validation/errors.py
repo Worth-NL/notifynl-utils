@@ -1,4 +1,5 @@
 from enum import StrEnum, auto
+from typing import Self
 
 import phonenumbers
 
@@ -6,7 +7,7 @@ import phonenumbers
 class InvalidRecipientError(Exception):
     message = "Not a valid recipient address"
 
-    def __init__(self, message: str = None):
+    def __init__(self, message: str | None = None):
         super().__init__(message or self.message)
 
 
@@ -68,7 +69,7 @@ class InvalidPhoneError(InvalidRecipientError):
         super().__init__(message=self.ERROR_MESSAGES[code])
 
     @classmethod
-    def from_phonenumbers_validation_result(cls, reason: phonenumbers.ValidationResult) -> str:
+    def from_phonenumbers_validation_result(cls, reason: int) -> Self:
         match reason:
             case phonenumbers.ValidationResult.TOO_LONG:
                 code = cls.Codes.TOO_LONG
@@ -87,7 +88,7 @@ class InvalidPhoneError(InvalidRecipientError):
 
         return cls(code=code)
 
-    def get_legacy_v2_api_error_message(self):
+    def get_legacy_v2_api_error_message(self) -> str:
         return self.LEGACY_V2_API_ERROR_MESSAGES[self.code]
 
 

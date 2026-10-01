@@ -5,8 +5,8 @@ import pytest
 from freezegun import freeze_time
 
 from notifications_utils.letter_timings import (
+    LetterTimings,
     get_dvla_working_day_offset_by,
-    get_letter_timings,
     get_next_royal_mail_working_day,
     get_previous_royal_mail_working_day,
     get_royal_mail_working_day_offset_by,
@@ -212,21 +212,21 @@ def test_get_estimated_delivery_date_for_letter(
 
     upload_time = upload_time.split(" ", 1)[1]
 
-    nl_timings = get_letter_timings(upload_time, postage="netherlands")
+    nl_timings = LetterTimings(upload_time, postage="netherlands")
 
     assert format_dt(nl_timings.printed_by) == expected_print_time
     assert nl_timings.is_printed == is_printed
     assert format_dt(nl_timings.earliest_delivery) == first_class
     assert format_dt(nl_timings.latest_delivery) == first_class
 
-    europe_timings = get_letter_timings(upload_time, postage="europe")
+    europe_timings = LetterTimings(upload_time, postage="europe")
 
     assert format_dt(europe_timings.printed_by) == expected_print_time
     assert europe_timings.is_printed == is_printed
     assert format_dt(europe_timings.earliest_delivery) == expected_earliest_europe
     assert format_dt(europe_timings.latest_delivery) == expected_latest_europe
 
-    rest_of_world_timings = get_letter_timings(upload_time, postage="rest-of-world")
+    rest_of_world_timings = LetterTimings(upload_time, postage="rest-of-world")
 
     assert format_dt(rest_of_world_timings.printed_by) == expected_print_time
     assert rest_of_world_timings.is_printed == is_printed

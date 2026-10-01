@@ -41,10 +41,16 @@ class PhoneNumber(UkPhoneNumber):
     def is_uk_phone_number(self):
         return self.number.country_code == int(NL_PREFIX)
 
+    def is_number_in_S7_protected_range(self) -> bool:
+        # OFCOM's S7 list holds UK national prefixes. The upstream check only guards on
+        # is_uk_phone_number(), which here means "is Dutch", so Dutch 07x landlines
+        # (e.g. Den Haag 070) would match UK 7xxx prefixes.
+        return False
+
     def is_international_number(self):
         if phonenumbers.region_code_for_number(self.number) == NL_CODE:
             return False
-        elif self._is_tv_number(self.number):
+        elif self.is_tv_number(self.number):
             return False
         else:
             return True

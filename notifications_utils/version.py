@@ -5,4 +5,4 @@
 # - `make version-minor` for new features
 # - `make version-patch` for bug fixes
 
-__version__ = "101.3.2"  # abc2b80a2ec5536b959def37a558c4af
+__version__ = "102.0.0"  # a9aed3271d7f5525ddf7ab26ff66f51e

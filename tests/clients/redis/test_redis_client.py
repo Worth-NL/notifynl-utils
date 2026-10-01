@@ -3,12 +3,13 @@ import logging
 import uuid
 from datetime import UTC, datetime
 from functools import partial
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 import pytest
 import redis
 from filelock import FileLock, Timeout
 from freezegun import freeze_time
+from redis.exceptions import TimeoutError as redis_TimeoutError
 
 from notifications_utils.clients.redis.redis_client import (
     RedisClient,
@@ -282,7 +283,7 @@ def test_should_call_get_if_enabled(mocked_redis_client):
 def test_exceeded_rate_limit_should_add_correct_calls_to_the_pipe(mocked_redis_client, mocked_redis_pipeline):
     mocked_redis_client.exceeded_rate_limit("key", 100, 100)
     assert mocked_redis_client.redis_store.pipeline.called
-    mocked_redis_pipeline.zadd.assert_called_with("key", {978350400.0: 978350400.0})
+    mocked_redis_pipeline.zadd.assert_called_with("key", {"978350400.0": 978350400.0})
     mocked_redis_pipeline.zremrangebyscore.assert_called_with("key", "-inf", 978350300.0)
     mocked_redis_pipeline.zcard.assert_called_with("key")
     mocked_redis_pipeline.expire.assert_called_with("key", 100)
@@ -396,3 +397,32 @@ def test_decrby(mocked_redis_client):
     key = "hash-key"
     mocked_redis_client.decrby(key, 10)
     mocked_redis_client.redis_store.decrby.assert_called_with(key, 10)
+
+
+def test_redis_flakey(caplog, app, mocked_redis_client):
+    mocked_redis_client.redis_store.get.side_effect = redis_TimeoutError
+
+    with app.app_context():
+        assert mocked_redis_client.get("foo", raise_exception=False, skippable=True) is None
+        mocked_redis_client.redis_store.get.side_effect = None
+        mocked_redis_client.redis_store.get.return_value = "1234"
+
+        assert mocked_redis_client.get("bar", raise_exception=False, skippable=True) is None
+        assert mocked_redis_client.set("baz", "qux", raise_exception=False, skippable=True) is None
+
+        assert mocked_redis_client.get("blah", raise_exception=False, skippable=False) == "1234"
+        assert mocked_redis_client.set("blaz", "qlux", raise_exception=False, skippable=False) is None
+
+    assert mocked_redis_client.redis_store.get.mock_calls == [
+        call("foo"),
+        # note no "bar"
+        call("blah"),
+    ]
+    assert mocked_redis_client.redis_store.set.mock_calls == [
+        # note no "baz"
+        call("blaz", "qlux", None, None, False, False),
+    ]
+
+    assert "Marking redis as flakey for remainder of app context" in caplog.messages
+    assert "Not performing redis get on bar because redis is possibly flakey" in caplog.messages
+    assert "Not performing redis set on baz because redis is possibly flakey" in caplog.messages

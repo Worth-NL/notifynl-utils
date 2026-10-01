@@ -6,3 +6,12 @@ redis~=7.2
 filelock~=3.24
 idna >= 3.14, < 4.0
 pre-commit
+
+html5lib
+mypy
+boto3-stubs
+celery-types
+types-PyYAML
+types-greenlet
+types-python-dateutil
+types-gunicorn

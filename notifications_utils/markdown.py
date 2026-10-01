@@ -3,6 +3,7 @@ import itertools
 import re
 import string
 from itertools import count
+from typing import cast
 
 import mistune
 import mistune.helpers
@@ -166,8 +167,8 @@ def _parse_link(src, pos):
     href, href_pos = mistune.helpers.parse_link_href(src, pos)
     if href is None:
         return None, None
-    title, title_pos = mistune.helpers.parse_link_title(src, href_pos, len(src))
-    next_pos = title_pos or href_pos
+    title, title_pos = mistune.helpers.parse_link_title(src, cast(int, href_pos), len(src))
+    next_pos = cast(int, title_pos or href_pos)
     next_pos = mistune.helpers._skip_ascii_whitespace(src, next_pos)
     if next_pos >= len(src) or src[next_pos] != ")":
         return None, None
@@ -241,7 +242,7 @@ class NotifyBlockParser(mistune.BlockParser):
         # forces its own paragraph break, rather than merging into surrounding text
         "plus_bullet": r"^ {0,3}\+.*$",
     }
-    DEFAULT_RULES = tuple(_DEFAULT_RULES_WITH_PLUS_BULLET)
+    DEFAULT_RULES = tuple(_DEFAULT_RULES_WITH_PLUS_BULLET)  # type: ignore[assignment]
 
     def parse_plus_bullet(self, m, state):
         end_pos = state.find_line_end()
@@ -251,6 +252,7 @@ class NotifyBlockParser(mistune.BlockParser):
     def parse_block_quote(self, m, state):
         """Block quote / inset text, introduced by a leading `^` rather than `>`."""
         m2 = _BLOCK_QUOTE_RULE.match(state.src, state.cursor)
+        assert m2 is not None  # only called by mistune after this rule has matched
         text = _BLOCK_QUOTE_LEADING_PATTERN.sub("", m2.group(0))
 
         child = state.child_state(text)
@@ -268,7 +270,9 @@ class NotifyInlineParser(mistune.InlineParser):
     # Letters/emails don't support emphasis, strong emphasis or inline code -
     # `*`/`_`/`` ` `` are left as literal characters. Strikethrough is a mistune
     # plugin we never enable, so `~~text~~` is already left alone.
-    DEFAULT_RULES = tuple(rule for rule in mistune.InlineParser.DEFAULT_RULES if rule not in ("emphasis", "codespan"))
+    DEFAULT_RULES = tuple(  # type: ignore[assignment]
+        rule for rule in mistune.InlineParser.DEFAULT_RULES if rule not in ("emphasis", "codespan")
+    )
 
     # mistune 0.8.4's escape rule excluded `<` from its escapable-character set
     # (while including `>` and everything else) - an accidental quirk, but one

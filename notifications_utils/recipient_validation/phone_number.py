@@ -1,6 +1,10 @@
 import re
+from bisect import bisect_right
 from collections import namedtuple
+from collections.abc import Sequence
 from contextlib import suppress
+from functools import cache
+from importlib import resources as importlib_resources
 
 import phonenumbers
 
@@ -39,8 +43,8 @@ DENY_LIST = [
     phonenumbers.PhoneNumberType.PREMIUM_RATE,
 ]
 
-international_phone_info = namedtuple(
-    "PhoneNumber",
+InternationalPhoneInfo = namedtuple(
+    "InternationalPhoneInfo",
     [
         "international",
         "crown_dependency",
@@ -48,6 +52,18 @@ international_phone_info = namedtuple(
         "rate_multiplier",
     ],
 )
+
+
+@cache
+def get_S7_protected_prefixes() -> Sequence[str]:
+    prefixes = (
+        importlib_resources.files("notifications_utils")
+        .joinpath("data/ofcom/S7_protected_prefixes.txt")
+        .read_text()
+        .split()
+    )
+    prefixes.sort()
+    return tuple(prefixes)  # ensure cached result can't be mutated
 
 
 class PhoneNumber:
@@ -63,7 +79,7 @@ class PhoneNumber:
         number.validate(allow_international_number = False, allow_uk_landline = False)
     """
 
-    def __init__(self, phone_number: str, is_service_contact_number: bool = False) -> None:
+    def __init__(self, phone_number: str, is_service_contact_number: bool = False):
         self.is_service_contact_number = is_service_contact_number
         try:
             self.number = self.parse_phone_number(phone_number)
@@ -72,28 +88,43 @@ class PhoneNumber:
             self.number = self.parse_phone_number(phone_number)
         self._phone_number = phone_number
 
-    def _raise_if_service_cannot_send_to_international_but_tries_to(self, allow_international: bool = False):
+    def _raise_if_service_cannot_send_to_international_but_tries_to(self, allow_international: bool = False) -> None:
         if not (allow_international or self.is_uk_phone_number()):
             raise InvalidPhoneError(code=InvalidPhoneError.Codes.NOT_A_UK_MOBILE)
 
-    def _raise_if_service_cannot_send_to_uk_landline_but_tries_to(self, allow_uk_landline: bool = False):
+    def _raise_if_service_cannot_send_to_uk_landline_but_tries_to(self, allow_uk_landline: bool = False) -> None:
         if self.number.country_code != int(UK_PREFIX):
             return
         is_landline = phonenumbers.number_type(self.number) in LANDLINE_CODES
         if not allow_uk_landline and is_landline:
             raise InvalidPhoneError(code=InvalidPhoneError.Codes.NOT_A_UK_MOBILE)
 
-    def _raise_if_unsupported_country(self):
+    def _raise_if_unsupported_country(self) -> None:
         if str(self.number.country_code) not in COUNTRY_PREFIXES:
             raise InvalidPhoneError(code=InvalidPhoneError.Codes.UNSUPPORTED_COUNTRY_CODE)
 
-    def validate(self, allow_international_number: bool = False, allow_uk_landline: bool = False) -> None:
+    def _raise_if_service_who_blocked_it_tries_sending_to_ofcom_protected_ranges(
+        self, block_ofcom_protected_blocks: bool = False
+    ):
+        if block_ofcom_protected_blocks:
+            if self.is_number_in_S7_protected_range() and not self.is_tv_number(self.number):
+                raise InvalidPhoneError(code=InvalidPhoneError.Codes.INVALID_NUMBER)
+
+    def validate(
+        self,
+        allow_international_number: bool = False,
+        allow_uk_landline: bool = False,
+        block_ofcom_protected_blocks: bool = False,
+    ) -> None:
         self._raise_if_service_cannot_send_to_international_but_tries_to(allow_international=allow_international_number)
         self._raise_if_service_cannot_send_to_uk_landline_but_tries_to(allow_uk_landline=allow_uk_landline)
+        self._raise_if_service_who_blocked_it_tries_sending_to_ofcom_protected_ranges(
+            block_ofcom_protected_blocks=block_ofcom_protected_blocks
+        )
         self._raise_if_unsupported_country()
 
     @staticmethod
-    def _try_parse_number(phone_number):
+    def _try_parse_number(phone_number: str) -> phonenumbers.PhoneNumber:
         try:
             # parse number as GB - if there's no country code, try and parse it as a UK number
             return phonenumbers.parse(phone_number, "GB")
@@ -144,7 +175,7 @@ class PhoneNumber:
             # is_possible just checks the length of a number for that country/region. is_valid checks if it's
             # a valid sequence of numbers. This doesn't cover "is this number registered to an MNO".
             # For example UK numbers cannot start "06" as that hasn't been assigned to a purpose by ofcom
-            if self._is_tv_number(number):
+            if self.is_tv_number(number):
                 return number
             else:
                 raise InvalidPhoneError(code=InvalidPhoneError.Codes.INVALID_NUMBER)
@@ -160,7 +191,7 @@ class PhoneNumber:
         return False
 
     @staticmethod
-    def _is_tv_number(phone_number) -> bool:
+    def is_tv_number(phone_number) -> bool:
         """
         The phonenumbers library does not consider TV numbers (fake numbers OFCOM reserves use in TV, film etc)
         valid. This method checks whether a normalised phone number that has failed the library's validation is
@@ -169,6 +200,8 @@ class PhoneNumber:
         phone_number_as_string = str(phone_number.national_number)
         if re.match("7700[900000-900999]", phone_number_as_string):
             return True
+
+        return False
 
     @staticmethod
     def _thoroughly_normalise_number(phone_number: str) -> str:
@@ -204,7 +237,7 @@ class PhoneNumber:
         return None
 
     @property
-    def prefix(self):
+    def prefix(self) -> str:
         """
         Returns the international dialing code for looking up data in our international_billing_rates.yml file
 
@@ -219,27 +252,43 @@ class PhoneNumber:
                 return country_and_area_code
         return str(self.number.country_code)
 
-    def is_uk_phone_number(self):
+    def is_uk_phone_number(self) -> bool:
         """
         Returns if the number starts with +44. Note, this includes international numbers for crown dependencies such as
         jersey/guernsey.
         """
         return self.number.country_code == int(UK_PREFIX)
 
-    def get_international_phone_info(self):
+    def is_number_in_S7_protected_range(self) -> bool:
+        """
+        Returns whether the number is, according to the OFCOM S7 file, within a range that is "protected".
+        """
+        if not self.is_uk_phone_number():
+            return False
+
+        prefixes = get_S7_protected_prefixes()
+        national_number = str(self.number.national_number)
+
+        # bisect is slight overkill but we can't be certain someone's not going to update
+        # our prefixes file with a massive list, so prioritize scalability
+        i = bisect_right(prefixes, national_number)
+
+        return bool(i) and national_number.startswith(prefixes[i - 1])
+
+    def get_international_phone_info(self) -> InternationalPhoneInfo:
         if is_international := self.is_international_number():
             rate_multiplier = INTERNATIONAL_BILLING_RATES[self.prefix]["rate_multiplier"]
         else:
             rate_multiplier = 1
 
-        return international_phone_info(
+        return InternationalPhoneInfo(
             international=is_international,
             crown_dependency=self.is_a_crown_dependency_number(),
             country_prefix=self.prefix,
             rate_multiplier=rate_multiplier,
         )
 
-    def is_international_number(self):
+    def is_international_number(self) -> bool:
         """
         Returns True for phone numbers that either have a GB country code
         or that are OFCOM TV numbers. libphonenumber only contains actually
@@ -249,30 +298,30 @@ class PhoneNumber:
         """
         if phonenumbers.region_code_for_number(self.number) == "GB":
             return False
-        elif self._is_tv_number(self.number):
+        elif self.is_tv_number(self.number):
             return False
         else:
             return True
 
-    def is_a_crown_dependency_number(self):
+    def is_a_crown_dependency_number(self) -> bool:
         """
         Returns True for phone numbers from Jersey, Guernsey, Isle of Man, etc
         TV numbers are an edge case where libphonenumber cannot accurately
         handle them (they're not actually valid numbers). In that case we
         always want to return False as we consider them to be UK numbers.
         """
-        if self._is_tv_number(self.number):
+        if self.is_tv_number(self.number):
             return False
         else:
             return self.is_uk_phone_number() and phonenumbers.region_code_for_number(self.number) != "GB"
 
-    def should_use_numeric_sender(self):
+    def should_use_numeric_sender(self) -> bool:
         """
         Some countries need a specific sender to be used rather than whatever the service has specified
         """
         return INTERNATIONAL_BILLING_RATES[self.prefix]["attributes"]["alpha"] == "NO"
 
-    def get_normalised_format(self):
+    def get_normalised_format(self) -> str:
         return str(self)
 
     def __str__(self):
@@ -284,7 +333,7 @@ class PhoneNumber:
         # TODO: If our suppliers let us send the plus, then we should do so, for consistency/accuracy.
         return formatted[1:]
 
-    def get_human_readable_format(self):
+    def get_human_readable_format(self) -> str:
         # comparable to `format_phone_number_human_readable`
         return phonenumbers.format_number(
             self.number,

@@ -1,11 +1,11 @@
 import csv
 import sys
+from collections.abc import Callable, Container, Iterable, Iterator, Mapping, MutableMapping, Sequence
 from contextlib import suppress
 from functools import lru_cache
 from io import StringIO
-from itertools import islice
-from time import sleep
-from typing import cast
+from itertools import chain, islice
+from typing import Any, cast
 
 from ordered_set import OrderedSet
 from werkzeug.utils import cached_property
@@ -14,7 +14,8 @@ from notifications_utils.formatters import (
     strip_all_whitespace,
     strip_and_remove_obscure_whitespace,
 )
-from notifications_utils.insensitive_dict import InsensitiveDict
+from notifications_utils.insensitive_dict import InsensitiveDict, InsensitiveSet
+from notifications_utils.interruptible_io import InterruptibleIterableList, interruptible_iter
 from notifications_utils.recipient_validation import email_address
 from notifications_utils.recipient_validation.errors import InvalidEmailError, InvalidPhoneError, InvalidRecipientError
 from notifications_utils.recipient_validation.notifynl.phone_number import PhoneNumber
@@ -33,12 +34,19 @@ first_column_headings = {
     "letter": [line.replace("_", " ") for line in address_lines_1_to_5_and_postcode_keys + [address_line_6_key]],
 }
 
-address_columns = InsensitiveDict.from_keys(first_column_headings["letter"])
 
+class RecipientCSV(InterruptibleIterableList["Row | None"]):
+    max_rows: int = 100_000
+    get_rows_loop_interruptible_every: int = 128
+    # we're less certain a significant amount of work is going to be done on each iteration
+    # through the resultant row list
+    INTERRUPTIBLE_ITERABLE_INTERRUPTIBLE_EVERY: int = 512
 
-class RecipientCSV:
-    max_rows = 100_000
-    get_rows_loop_interruptible_every = 128
+    _template: Template
+    template_type: str
+    recipient_column_headers: InsensitiveSet[str]
+    _guestlist: Sequence[Any]
+    placeholders: InsensitiveSet[str]
 
     def __init__(
         self,
@@ -52,6 +60,7 @@ class RecipientCSV:
         allow_international_sms=False,
         allow_international_letters=False,
         allow_sms_to_uk_landline=False,
+        block_ofcom_protected_blocks=False,
         should_validate=True,
         should_validate_phone_number=True,
     ):
@@ -63,22 +72,15 @@ class RecipientCSV:
         self.allow_international_sms = allow_international_sms
         self.allow_international_letters = allow_international_letters
         self.allow_sms_to_uk_landline = allow_sms_to_uk_landline
+        self.block_ofcom_protected_blocks = block_ofcom_protected_blocks
         self.remaining_messages = remaining_messages
         self.remaining_international_sms_messages = remaining_international_sms_messages
-        self.rows_as_list = None
         self.should_validate = should_validate
         self.should_validate_phone_number = should_validate_phone_number
-
-    def __len__(self):
-        if not hasattr(self, "_len"):
-            self._len = len(self.rows)
-        return self._len
-
-    def __getitem__(self, requested_index):
-        return self.rows[requested_index]
+        super().__init__(self._get_rows())
 
     @property
-    def guestlist(self):
+    def guestlist(self) -> Sequence[Any]:
         return self._guestlist
 
     @guestlist.setter
@@ -89,32 +91,17 @@ class RecipientCSV:
             self._guestlist = []
 
     @property
-    def template(self):
+    def template(self) -> Template:
         return self._template
 
     @template.setter
-    def template(self, value):
+    def template(self, value: Template):
         if not isinstance(value, Template):
             raise TypeError("template must be an instance of notifications_utils.template.Template")
         self._template = value
         self.template_type = self._template.template_type
-        self.recipient_column_headers = first_column_headings[self.template_type]
-        self.placeholders = self._template.placeholders
-
-    @property
-    def placeholders(self):
-        return self._placeholders
-
-    @placeholders.setter
-    def placeholders(self, value):
-        try:
-            self._placeholders = list(value) + self.recipient_column_headers
-        except TypeError:
-            self._placeholders = self.recipient_column_headers
-        self.placeholders_as_column_keys = [InsensitiveDict.make_key(placeholder) for placeholder in self._placeholders]
-        self.recipient_column_headers_as_column_keys = [
-            InsensitiveDict.make_key(placeholder) for placeholder in self.recipient_column_headers
-        ]
+        self.recipient_column_headers = InsensitiveSet(first_column_headings[self.template_type])
+        self.placeholders = self._template.placeholders | self.recipient_column_headers
 
     @property
     def has_errors(self) -> bool:
@@ -129,38 +116,32 @@ class RecipientCSV:
         )  # `or` is 3x faster than using `any()` here
 
     @property
-    def allowed_to_send_to(self):
+    def allowed_to_send_to(self) -> bool:
         if self.template_type == "letter":
             return True
         if not self.guestlist:
             return True
-        return all(allowed_to_send_to(row.recipient, self.guestlist) for row in self.rows)
+        return all(allowed_to_send_to(row.recipient, self.guestlist) for row in self._filter_rows())
 
     @cached_property
-    def international_sms_count(self):
+    def international_sms_count(self) -> int:
         if self.template_type != "sms":
             return 0
         return sum(self._international_sms_count_generator())
 
-    def _international_sms_count_generator(self):
-        for row in self.rows:
+    def _international_sms_count_generator(self) -> Iterator[bool]:
+        for row in self._filter_rows():
             with suppress(InvalidPhoneError):
                 yield not get_phone_number_object(row.recipient).is_uk_phone_number()
 
     @property
-    def more_international_sms_than_can_send(self):
+    def more_international_sms_than_can_send(self) -> bool:
         if self.template_type != "sms":
             return False
         return self.international_sms_count > max(self.remaining_international_sms_messages, 0)
 
     @property
-    def rows(self):
-        if self.rows_as_list is None:
-            self.rows_as_list = list(self.get_rows())
-        return self.rows_as_list
-
-    @property
-    def _rows(self):
+    def _rows(self) -> Iterator[Sequence[str]]:
         return csv.reader(
             StringIO(self.file_data.strip()),
             quoting=csv.QUOTE_MINIMAL,
@@ -168,18 +149,18 @@ class RecipientCSV:
         )
 
     @property
-    def _first_empty_column_indices(self):
+    def _first_empty_column_indices(self) -> Iterator[int]:
         for row_index, row in enumerate(self._rows):
             if row_index == 0:
                 continue  # skip the header row
             yield max((column_index for column_index, column in enumerate(row) if column), default=-1) + 1
 
-    def get_rows(self):
+    def _get_rows(self) -> "Iterator[Row | None]":
         index_of_first_empty_column = max(self._first_empty_column_indices, default=0)
         headers_of_populated_columns = self._raw_column_headers[:index_of_first_empty_column]
         headers_of_empty_columns = self._raw_column_headers[index_of_first_empty_column:]
         unique_headers_of_empty_columns = list(OrderedSet(headers_of_empty_columns) - set(headers_of_populated_columns))
-        column_headers = headers_of_populated_columns + unique_headers_of_empty_columns
+        column_headers = tuple(chain(headers_of_populated_columns, unique_headers_of_empty_columns))
         length_of_column_headers = len(column_headers)
         length_of_widest_row = max(index_of_first_empty_column, length_of_column_headers)
 
@@ -187,22 +168,23 @@ class RecipientCSV:
 
         next(rows_as_lists_of_columns, None)  # skip the header row
 
-        for index, row in enumerate(rows_as_lists_of_columns):
+        for index, row in enumerate(
+            interruptible_iter(
+                rows_as_lists_of_columns,
+                self.get_rows_loop_interruptible_every,
+                label=f"{self.__class__.__name__}._get_rows",
+            )
+        ):
             if index >= self.max_rows:
                 yield None
                 continue
 
-            if not (index + 1) % self.get_rows_loop_interruptible_every:
-                # all green thread libraries will monkeypatch this to yield to the event loop
-                # and the real implementation should at least drop the GIL
-                sleep(0)
-
-            output_dict = {}
+            output_dict: dict[str | None, Any] = {}
 
             for column_name, column_value in zip(column_headers, row[:length_of_widest_row], strict=False):
                 column_value = strip_and_remove_obscure_whitespace(column_value)
 
-                if InsensitiveDict.make_key(column_name) in self.recipient_column_headers_as_column_keys:
+                if column_name in self.recipient_column_headers:
                     output_dict[column_name] = column_value or None
                 else:
                     insert_or_append_to_dict(output_dict, column_name, column_value or None)
@@ -221,92 +203,85 @@ class RecipientCSV:
                 index=index,
                 error_fn=self._get_error_for_field,
                 recipient_column_headers=self.recipient_column_headers,
-                placeholders=self.placeholders_as_column_keys,
+                placeholders=self.placeholders,
                 template=self.template,
                 allow_international_letters=self.allow_international_letters,
                 validate_row=self.should_validate,
             )
 
     @property
-    def more_rows_than_can_send(self):
+    def more_rows_than_can_send(self) -> bool:
         return len(self) > self.remaining_messages
 
     @property
-    def too_many_rows(self):
+    def too_many_rows(self) -> bool:
         return len(self) > self.max_rows
 
     @property
-    def initial_rows(self):
-        return islice(self.rows, self.max_initial_rows_shown)
+    def initial_rows(self) -> "Iterator[Row | None]":
+        return islice(self, self.max_initial_rows_shown)
 
     @property
-    def displayed_rows(self):
+    def displayed_rows(self) -> "Iterator[Row | None]":
         if any(self.rows_with_errors) and not self.missing_column_headers:
             return self.initial_rows_with_errors
         return self.initial_rows
 
-    def _filter_rows(self, attr):
-        return (row for row in self.rows if row and getattr(row, attr))
+    def _filter_rows(self, attr: str | None = None) -> "Iterator[Row]":
+        return (row for row in self if row and (attr is None or getattr(row, attr)))
 
     @property
-    def rows_with_errors(self):
+    def rows_with_errors(self) -> "Iterator[Row]":
         return self._filter_rows("has_error")
 
     @property
-    def rows_with_bad_recipients(self):
+    def rows_with_bad_recipients(self) -> "Iterator[Row]":
         return self._filter_rows("has_bad_recipient")
 
     @property
-    def rows_with_missing_data(self):
+    def rows_with_missing_data(self) -> "Iterator[Row]":
         return self._filter_rows("has_missing_data")
 
     @property
-    def rows_with_message_too_long(self):
+    def rows_with_message_too_long(self) -> "Iterator[Row]":
         return self._filter_rows("message_too_long")
 
     @property
-    def rows_with_empty_message(self):
+    def rows_with_empty_message(self) -> "Iterator[Row]":
         return self._filter_rows("message_empty")
 
     @property
-    def rows_with_bad_qr_codes(self):
+    def rows_with_bad_qr_codes(self) -> "Iterator[Row]":
         return self._filter_rows("qr_code_too_long")
 
     @property
-    def initial_rows_with_errors(self):
+    def initial_rows_with_errors(self) -> "Iterator[Row]":
         return islice(self.rows_with_errors, self.max_errors_shown)
 
     @cached_property
-    def _raw_column_headers(self):
+    def _raw_column_headers(self) -> Sequence[str]:
         for row in self._rows:
             return row
         return []
 
     @property
-    def column_headers(self):
+    def column_headers(self) -> Sequence[str]:
         return list(OrderedSet(self._raw_column_headers))
 
-    @property
-    def column_headers_as_column_keys(self):
-        return InsensitiveDict.from_keys(self.column_headers).keys()
+    @cached_property
+    def insensitive_column_headers(self) -> InsensitiveSet[str]:
+        return InsensitiveSet(self.column_headers)
 
     @property
-    def missing_column_headers(self):
-        return {
-            key
-            for key in self.placeholders
-            if (
-                InsensitiveDict.make_key(key) not in self.column_headers_as_column_keys
-                and not self.is_address_column(key)
-            )
-        }
+    def missing_column_headers(self) -> InsensitiveSet[str]:
+        return self.placeholders - self.insensitive_column_headers - self.address_columns
 
     @cached_property
-    def duplicate_recipient_column_headers(self):
-        raw_recipient_column_headers = [
+    def duplicate_recipient_column_headers(self) -> OrderedSet[str]:
+        raw_recipient_column_headers: list[str] = [
             InsensitiveDict.make_key(column_header)
             for column_header in self._raw_column_headers
-            if InsensitiveDict.make_key(column_header) in self.recipient_column_headers_as_column_keys
+            if column_header in self.recipient_column_headers
         ]
 
         return OrderedSet(
@@ -315,23 +290,25 @@ class RecipientCSV:
             if raw_recipient_column_headers.count(InsensitiveDict.make_key(column_header)) > 1
         )
 
-    def is_address_column(self, key):
-        return self.template_type == "letter" and key in address_columns
+    @cached_property
+    def address_columns(self) -> InsensitiveSet:
+        return self.recipient_column_headers if self.template_type == "letter" else InsensitiveSet()
 
     @property
-    def count_of_required_recipient_columns(self):
+    def count_of_required_recipient_columns(self) -> int:
         return 3 if self.template_type == "letter" else 1
 
     @property
     def has_recipient_columns(self) -> bool:
+        sets_to_check: Iterable[Iterable[str]]
         if self.template_type == "letter":
             sets_to_check = [
-                InsensitiveDict.from_keys(address_lines_1_to_5_and_postcode_keys).keys(),
-                InsensitiveDict.from_keys(address_lines_1_to_6_keys).keys(),
+                InsensitiveSet(address_lines_1_to_5_and_postcode_keys),
+                InsensitiveSet(address_lines_1_to_6_keys),
             ]
         else:
             sets_to_check = [
-                self.recipient_column_headers_as_column_keys,
+                self.recipient_column_headers,
             ]
 
         for set_to_check in sets_to_check:
@@ -340,7 +317,7 @@ class RecipientCSV:
                     # Work out which columns are shared between the possible
                     # letter address columns and the columns in the user’s
                     # spreadsheet (`&` means set intersection)
-                    set_to_check & self.column_headers_as_column_keys
+                    set_to_check & self.insensitive_column_headers
                 )
                 >= self.count_of_required_recipient_columns
             ):
@@ -348,67 +325,66 @@ class RecipientCSV:
 
         return False
 
-    def _get_error_for_field(self, key, value):  # noqa: C901
-        if self.is_address_column(key):
-            return
+    def _get_error_for_field(self, key, value) -> str | None:
+        if key in self.address_columns:
+            return None
 
-        if InsensitiveDict.make_key(key) in self.recipient_column_headers_as_column_keys:
-            if value in [None, ""] or isinstance(value, list):
-                if self.duplicate_recipient_column_headers:
-                    return None
-                else:
-                    return Cell.missing_field_error
+        if key in self.recipient_column_headers:
+            if self.duplicate_recipient_column_headers:
+                return None
+
+            if value in [None, ""]:
+                return Cell.missing_field_error
+
             try:
                 if self.template_type == "email":
                     email_address.validate_email_address(value)
-                if self.template_type == "sms":
-                    if self.should_validate_phone_number:
-                        number = get_phone_number_object(value)
-                        number.validate(
-                            allow_international_number=self.allow_international_sms,
-                            allow_uk_landline=self.allow_sms_to_uk_landline,
-                        )
+                if self.template_type == "sms" and self.should_validate_phone_number:
+                    get_phone_number_object(value).validate(
+                        allow_international_number=self.allow_international_sms,
+                        allow_uk_landline=self.allow_sms_to_uk_landline,
+                        block_ofcom_protected_blocks=self.block_ofcom_protected_blocks,
+                    )
             except InvalidRecipientError as error:
                 return str(error)
 
-        if InsensitiveDict.make_key(key) not in self.placeholders_as_column_keys:
-            return
-
-        if value in [None, ""]:
+        if key in self.placeholders and value in [None, ""]:
             return Cell.missing_field_error
 
+        return None
 
-class Row(InsensitiveDict):
-    message_too_long = False
-    message_empty = False
+
+class Row(InsensitiveDict[str | None, Any]):
+    message_too_long: bool = False
+    message_empty: bool = False
+
+    index: int
+    recipient_column_headers: Sequence[str]
+    placeholders: InsensitiveSet[str]
+    allow_international_letters: bool
+    _template: Template
+    qr_code_too_long: QrCodeTooLong | None
 
     def __init__(
         self,
-        row_dict,
+        row_dict: Mapping[str | None, Any],
         *,
-        index,
+        index: int,
         error_fn,
         recipient_column_headers,
-        placeholders,
+        placeholders: InsensitiveSet[str],
         template: Template,
-        allow_international_letters,
+        allow_international_letters: bool,
         validate_row=True,
     ):
-        # If we don't need to validate, then:
-        # by not setting template we avoid the template level validation (used to check message length)
-        # by not setting error_fn, we avoid the Cell.__init__ validation (used to check phone nums are valid,
-        # placeholders are present, etc)
-        if not validate_row:
-            template = None
-            error_fn = None
-
         self.index = index
         self.recipient_column_headers = recipient_column_headers
         self.placeholders = placeholders
         self.allow_international_letters = allow_international_letters
 
         self._template = template
-        if template:
+
+        if validate_row:
             template.values = row_dict
             self.template_type = template.template_type
             # we do not validate email size for CSVs to avoid performance issues
@@ -419,7 +395,12 @@ class Row(InsensitiveDict):
             self.message_empty = template.is_message_empty()
             self.qr_code_too_long: QrCodeTooLong | None = self._has_qr_code_with_too_much_data()
 
-        super().__init__({key: Cell(key, value, error_fn, self.placeholders) for key, value in row_dict.items()})
+        super().__init__(
+            {
+                key: Cell(key, value, error_fn if validate_row else None, self.placeholders)
+                for key, value in row_dict.items()
+            }
+        )
 
     def __getitem__(self, key):
         return super().__getitem__(key) if key in self else Cell()
@@ -440,7 +421,7 @@ class Row(InsensitiveDict):
         return self.get(self.recipient_column_headers[0]).recipient_error
 
     @property
-    def has_bad_postal_address(self):
+    def has_bad_postal_address(self) -> bool:
         return self.template_type == "letter" and not self.as_postal_address.valid
 
     def _has_qr_code_with_too_much_data(self) -> QrCodeTooLong | None:
@@ -476,21 +457,34 @@ class Row(InsensitiveDict):
         )
 
     @property
-    def personalisation(self):
-        return InsensitiveDict({key: cell.data for key, cell in self.items() if key in self.placeholders})
+    def personalisation(self) -> InsensitiveDict[str, Any]:
+        return cast(
+            InsensitiveDict[str, Any],
+            InsensitiveDict({key: cell.data for key, cell in self.items() if key in self.placeholders}),
+        )
 
     @property
-    def recipient_and_personalisation(self):
+    def recipient_and_personalisation(self) -> InsensitiveDict[str | None, Any]:
         return InsensitiveDict({key: cell.data for key, cell in self.items()})
 
 
 class Cell:
     __slots__ = ("data", "ignore", "error")
-    missing_field_error = "Missing"
+    missing_field_error: str = "Missing"
 
-    def __init__(self, key=None, value=None, error_fn=None, placeholders=None):
+    data: Any
+    ignore: bool
+    error: str | None
+
+    def __init__(
+        self,
+        key: str | None = None,
+        value=None,
+        error_fn: Callable[[Any, Any], str | None] | None = None,
+        placeholders: Container[str] | None = None,
+    ):
         self.data = value
-        self.ignore = InsensitiveDict.make_key(key) not in (placeholders or [])
+        self.ignore = (not placeholders) or InsensitiveDict.make_key(key) not in placeholders
         self.error = error_fn(key, value) if error_fn and not self.ignore else None
 
     def __eq__(self, other) -> bool:
@@ -502,12 +496,12 @@ class Cell:
         )
 
     @property
-    def recipient_error(self):
+    def recipient_error(self) -> bool:
         return self.error not in (None, self.missing_field_error)
 
 
 @lru_cache(maxsize=32, typed=False)
-def format_recipient(recipient):
+def format_recipient(recipient) -> str:
     if not isinstance(recipient, str):
         return ""
     with suppress(InvalidPhoneError):
@@ -519,15 +513,15 @@ def format_recipient(recipient):
 
 
 @lru_cache(maxsize=RecipientCSV.max_rows, typed=False)
-def get_phone_number_object(phone_number):
+def get_phone_number_object(phone_number: str) -> PhoneNumber:
     return PhoneNumber(phone_number)
 
 
-def allowed_to_send_to(recipient, allowlist):
+def allowed_to_send_to(recipient: str | Sequence[str], allowlist: Sequence[str]) -> bool:
     return format_recipient(recipient) in (format_recipient(x) for x in allowlist)
 
 
-def insert_or_append_to_dict(dict_, key, value):
+def insert_or_append_to_dict[K, Vi](dict_: MutableMapping[K, Vi | list[Vi]], key: K, value: Vi):
     if not (key or value):
         # We don’t care about completely empty values so it’s faster to
         # ignore them rather than working out how to store them
