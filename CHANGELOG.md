@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 102.0.1
+
+* Markdown links (`[text](url)`) keep a `&` in the url HTML-escaped (`&amp;`) again, as mistune 0.8.4
+  did. mistune 3's `escape_url` decoded it, so hrefs with more than one query parameter (e.g. email file
+  links with `&template_version=1`) were invalid HTML. Plain-text emails still show a plain `&`.
+
 ## 102.0.0
 
 * Merged alphagov/notifications-utils up to upstream 132.2.0 (`0a5d9e4`, alphagov sync cutoff

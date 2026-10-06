@@ -177,7 +177,11 @@ def _parse_link(src, pos):
         attrs = {"url": href}
     else:
         href = mistune.helpers.unescape_char(href)
-        attrs = {"url": mistune.helpers.escape_url(href)}
+        # mistune 3's escape_url HTML-unescapes the href (content arrives already
+        # HTML-escaped, so `&amp;` becomes `&`) before percent-encoding it, and leaves
+        # `&` itself unencoded. Re-escape it, as mistune 0.8.4 kept it, so the href is
+        # valid HTML (e.g. `?key=...&amp;template_version=1` on email file links).
+        attrs = {"url": mistune.helpers.escape_url(href).replace("&", "&amp;")}
     if title:
         attrs["title"] = title
     return attrs, next_pos + 1
