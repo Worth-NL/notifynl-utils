@@ -1,0 +1,46 @@
+name: Trivy
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: '30 3 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    name: Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # This package ships no image, so scan the repository itself:
+      # Trivy reads the locked dependencies from uv.lock and requirements_for_test.txt.
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          scanners: 'vuln,secret'
+          format: 'template'
+          template: '@/contrib/sarif.tpl'
+          output: 'trivy-results.sarif'
+          severity: 'UNKNOWN,LOW,MEDIUM,CRITICAL,HIGH'
+          ignore-unfixed: true
+          exit-code: '0'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: 'trivy-results.sarif'
