@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 102.0.2
+
+* New pytest plugin `notifications_utils.testing_nl.superseded_tests`: list upstream tests that don't hold for NL
+  in a `superseded_tests_nl.toml` manifest instead of skipping them inline, so upstream test files can stay
+  identical to alphagov's. Load it from a root `conftest.py` with
+  `pytest_plugins = ["notifications_utils.testing_nl.superseded_tests"]`; run `--nl-verify` in CI to check the
+  manifest, and `--nl-run-superseded` to find entries that pass again.
+
 ## 102.0.1
 
 * Markdown links (`[text](url)`) keep a `&` in the url HTML-escaped (`&amp;`) again, as mistune 0.8.4
