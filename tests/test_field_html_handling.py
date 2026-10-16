@@ -3,7 +3,6 @@ import pytest
 from notifications_utils.field import Field
 
 
-@pytest.mark.skip("[NOTIFYNL] Broken by conditional placeholders change")
 @pytest.mark.parametrize(
     "content, values, expected_escaped, expected_passthrough",
     [

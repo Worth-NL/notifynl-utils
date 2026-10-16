@@ -1,0 +1,288 @@
+[[test]]
+nodeid = "tests/clients/zendesk/test_zendesk_client.py::TestZendeskClientUpdateTicket"
+reason = "Zendesk vars change"
+
+[[test]]
+nodeid = "tests/clients/zendesk/test_zendesk_client.py::TestZendeskClientUploadAttachment"
+reason = "Zendesk vars change"
+
+[[test]]
+nodeid = "tests/clients/zendesk/test_zendesk_client.py::test_notify_support_ticket_request_data"
+reason = "Zendesk vars change"
+
+[[test]]
+nodeid = "tests/clients/zendesk/test_zendesk_client.py::test_notify_support_ticket_with_html_body"
+reason = "Zendesk vars change"
+
+[[test]]
+nodeid = "tests/clients/zendesk/test_zendesk_client.py::test_zendesk_client_send_ticket_to_zendesk"
+reason = "Zendesk vars change"
+
+[[test]]
+nodeid = "tests/clients/zendesk/test_zendesk_client.py::test_zendesk_client_send_ticket_to_zendesk_error"
+reason = "Zendesk vars change"
+
+[[test]]
+nodeid = "tests/clients/zendesk/test_zendesk_client.py::test_zendesk_client_send_ticket_to_zendesk_with_user_suspended_error"
+reason = "Zendesk vars change"
+
+[[test]]
+nodeid = "tests/recipient_validation/test_phone_number.py::test_validates_against_guestlist_of_international_phone_numbers"
+reason = "Dutch phone number implementation breaks this test"
+
+[[test]]
+nodeid = "tests/recipient_validation/test_phone_number.py::test_validates_against_guestlist_of_phone_numbers"
+reason = "Dutch phone number implementation breaks this test"
+
+[[test]]
+nodeid = "tests/recipient_validation/test_postal_address.py::test_as_personalisation"
+reason = "Dutch postal address implementation"
+twin = ["tests_nl/test_nl_postal_address.py::test_as_personalisation"]
+
+[[test]]
+nodeid = "tests/recipient_validation/test_postal_address.py::test_bfpo_address_lines"
+reason = "Dutch postal address implementation"
+not_applicable = "BFPO (British Forces Post Office) is UK-only; NL ignores it, see test_does_not_treat_bfpo_as_special"
+
+[[test]]
+nodeid = "tests/recipient_validation/test_postal_address.py::test_bfpo_address_lines_error"
+reason = "Dutch postal address implementation"
+not_applicable = "BFPO (British Forces Post Office) is UK-only; NL ignores it, see test_does_not_treat_bfpo_as_special"
+
+[[test]]
+nodeid = "tests/recipient_validation/test_postal_address.py::test_bfpo_address_with_country_still_shows_country_in_normalised_lines_even_if_invalid"
+reason = "Dutch postal address implementation"
+not_applicable = "BFPO (British Forces Post Office) is UK-only; NL ignores it, see test_does_not_treat_bfpo_as_special"
+
+[[test]]
+nodeid = "tests/recipient_validation/test_postal_address.py::test_bfpo_addresses"
+reason = "Dutch postal address implementation"
+counterpart = ["tests_nl/test_nl_postal_address.py::test_does_not_treat_bfpo_as_special"]
+
+[[test]]
+nodeid = "tests/recipient_validation/test_postal_address.py::test_bfpo_number_parsing"
+reason = "Dutch postal address implementation No VFPO"
+not_applicable = "BFPO (British Forces Post Office) is UK-only; NL ignores it, see test_does_not_treat_bfpo_as_special"
+
+[[test]]
+nodeid = "tests/recipient_validation/test_postal_address.py::test_country"
+reason = "Dutch postal address implementation - NL is now default"
+counterpart = ["tests_nl/test_nl_postal_address.py::test_default_country_is_nl", "tests_nl/test_nl_postal_address.py::test_explicit_country_overrides_default", "tests_nl/test_nl_postal_address.py::test_unknown_explicit_country_returns_default_and_valid"]
+
+[[test]]
+nodeid = "tests/recipient_validation/test_postal_address.py::test_from_personalisation"
+reason = "Dutch postal address implementation"
+twin = ["tests_nl/test_nl_postal_address.py::test_from_personalisation"]
+
+[[test]]
+nodeid = "tests/recipient_validation/test_postal_address.py::test_from_personalisation_handles_int"
+reason = "Dutch postal address implementation"
+twin = ["tests_nl/test_nl_postal_address.py::test_from_personalisation_handles_int"]
+
+[[test]]
+nodeid = "tests/recipient_validation/test_postal_address.py::test_from_personalisation_to_normalisation_doesnt_stringify_nones"
+reason = "Dutch postal address implementation"
+twin = ["tests_nl/test_nl_postal_address.py::test_from_personalisation_to_normalisation_doesnt_stringify_nones"]
+
+[[test]]
+nodeid = "tests/recipient_validation/test_postal_address.py::test_handles_addresses_which_are_exclusively_uk_countries"
+reason = "Dutch postal address implementation"
+not_applicable = "England/Scotland/Wales/Northern Ireland as an address are a UK-only concept"
+
+[[test]]
+nodeid = "tests/recipient_validation/test_postal_address.py::test_has_enough_lines"
+reason = "Dutch postal address implementation"
+twin = ["tests_nl/test_nl_postal_address.py::test_too_few_lines"]
+
+[[test]]
+nodeid = "tests/recipient_validation/test_postal_address.py::test_has_no_fixed_abode_address"
+reason = "Dutch postal address implementation"
+twin = ["tests_nl/test_nl_postal_address.py::test_has_no_fixed_abode_address"]
+
+[[test]]
+nodeid = "tests/recipient_validation/test_postal_address.py::test_has_too_many_lines"
+reason = "Dutch postal address implementation"
+twin = ["tests_nl/test_nl_postal_address.py::test_too_many_lines"]
+
+[[test]]
+nodeid = "tests/recipient_validation/test_postal_address.py::test_international"
+reason = "Dutch postal address implementation"
+twin = ["tests_nl/test_nl_postal_address.py::test_international"]
+
+[[test]]
+nodeid = "tests/recipient_validation/test_postal_address.py::test_normalised"
+reason = "Dutch postal address implementation"
+twin = ["tests_nl/test_nl_postal_address.py::test_normalised"]
+
+[[test]]
+nodeid = "tests/recipient_validation/test_postal_address.py::test_normalised_lines"
+reason = "Dutch postal address implementation"
+twin = ["tests_nl/test_nl_postal_address.py::test_normalised_lines_for_addresses", "tests_nl/test_nl_postal_address.py::test_normalised_lines_for_dutch_address"]
+
+[[test]]
+nodeid = "tests/recipient_validation/test_postal_address.py::test_postage"
+reason = "Dutch Postage implementation"
+twin = ["tests_nl/test_nl_postal_address.py::test_postage"]
+
+[[test]]
+nodeid = "tests/recipient_validation/test_postal_address.py::test_postcode"
+reason = "Dutch postal address implementation"
+twin = ["tests_nl/test_nl_postal_address.py::test_postcode"]
+
+[[test]]
+nodeid = "tests/recipient_validation/test_postal_address.py::test_valid_last_line_too_short_too_long"
+reason = "Dutch postal address implementation"
+twin = ["tests_nl/test_nl_postal_address.py::test_valid_last_line_too_short_too_long"]
+
+[[test]]
+nodeid = "tests/recipient_validation/test_postal_address.py::test_valid_with_international_parameter"
+reason = "Dutch postal address implementation"
+twin = ["tests_nl/test_nl_postal_address.py::test_valid_with_international_parameter"]
+
+[[test]]
+nodeid = "tests/recipient_validation/test_postal_address.py::test_valid_with_nfa_address"
+reason = "Dutch postal address implementation NO NFA"
+counterpart = ["tests_nl/test_nl_postal_address.py::test_has_no_fixed_abode_address"]
+
+[[test]]
+nodeid = "tests/test_letter_timings.py::test_get_estimated_delivery_date_for_letter"
+reason = "Dutch postal address implementation - now on test_nl_letter_timmings.py"
+twin = ["tests_nl/test_nl_letter_timings.py::test_get_estimated_delivery_date_for_letter"]
+
+[[test]]
+nodeid = "tests/test_letter_timings.py::test_get_offset_working_day"
+reason = "Dutch postal address implementation - now on test_nl_letter_timmings.py"
+twin = ["tests_nl/test_nl_letter_timings.py::test_get_offset_working_day"]
+
+[[test]]
+nodeid = "tests/test_letter_timings.py::test_next_previous_working_days_royal_mail_first_class"
+reason = "Dutch postal address implementation - now on test_nl_letter_timmings.py"
+twin = ["tests_nl/test_nl_letter_timings.py::test_next_previous_working_days_royal_mail_first_class"]
+
+[[test]]
+nodeid = "tests/test_placeholders.py::test_placeholder_gets_conditional_body"
+reason = "Broken by conditional placeholders change"
+
+[[test]]
+nodeid = "tests/test_placeholders.py::test_placeholder_raises_if_getting_conditional_body_on_non_conditional"
+reason = "Broken by conditional placeholders change"
+
+[[test]]
+nodeid = "tests/test_recipient_csv.py::test_accepts_international_addresses_when_allowed"
+reason = "Dutch postal address implementation - now on test_nl_test_recipients.py"
+twin = ["tests_nl/test_nl_recipients_csv.py::test_accepts_international_addresses_when_allowed"]
+
+[[test]]
+nodeid = "tests/test_recipient_csv.py::test_address_validation_speed"
+reason = "Dutch postal address implementation - now on test_nl_test_recipients.py"
+twin = ["tests_nl/test_nl_recipients_csv.py::test_address_validation_speed"]
+
+[[test]]
+nodeid = "tests/test_recipient_csv.py::test_bad_or_missing_data"
+reason = "PostalAdress issue"
+twin = ["tests_nl/test_nl_recipients_csv.py::test_bad_or_missing_data"]
+
+[[test]]
+nodeid = "tests/test_recipient_csv.py::test_big_list_validates_right_through"
+reason = "Dutch phone number implementation breaks this test"
+
+[[test]]
+nodeid = "tests/test_recipient_csv.py::test_empty_rows"
+reason = "Dutch phone number implementation breaks this test"
+
+[[test]]
+nodeid = "tests/test_recipient_csv.py::test_errors_on_qr_codes_with_too_much_data"
+reason = "Dutch postal address implementation - now on test_nl_test_recipients.py"
+twin = ["tests_nl/test_nl_recipients_csv.py::test_errors_on_qr_codes_with_too_much_data"]
+
+[[test]]
+nodeid = "tests/test_recipient_csv.py::test_get_annotated_rows"
+reason = "Dutch phone number implementation breaks this test"
+
+[[test]]
+nodeid = "tests/test_recipient_csv.py::test_international_recipients"
+reason = "Dutch phone number implementation breaks this test"
+
+[[test]]
+nodeid = "tests/test_recipient_csv.py::test_international_sms_limit"
+reason = "Dutch phone number implementation breaks this test"
+
+[[test]]
+nodeid = "tests/test_recipient_csv.py::test_international_sms_limit_handles_negative_limit"
+reason = "Dutch phone number implementation breaks this test"
+
+[[test]]
+nodeid = "tests/test_recipient_csv.py::test_international_sms_limit_is_ok_with_uk_number_if_no_international_remaining"
+reason = "Dutch phone number implementation breaks this test"
+
+[[test]]
+nodeid = "tests/test_recipient_csv.py::test_ofcom_recipients_in_ofcom_protected_block"
+reason = "Dutch phone number implementation breaks this test"
+counterpart = ["tests_nl/test_nl_phone_number.py::test_dutch_numbers_are_never_in_ofcom_s7_protected_range"]
+
+[[test]]
+nodeid = "tests/test_recipient_csv.py::test_recipient_column"
+reason = "PostalAddress issue"
+twin = ["tests_nl/test_nl_recipients_csv.py::test_recipient_column"]
+
+[[test]]
+nodeid = "tests/test_recipient_csv.py::test_recipient_column_headers"
+reason = "Dutch postal address implementation"
+twin = ["tests_nl/test_nl_recipients_csv.py::test_recipient_column_headers"]
+
+[[test]]
+nodeid = "tests/test_recipient_csv.py::test_recipient_guestlist"
+reason = "Dutch phone number implementation breaks this test"
+
+[[test]]
+nodeid = "tests/test_recipient_csv.py::test_sms_to_uk_landlines"
+reason = "Dutch phone number implementation breaks this test"
+
+[[test]]
+nodeid = "tests/test_template_types.py::test_alt_text_with_no_brand_text_and_govuk_banner_shown"
+reason = "Broken by Email Template change"
+
+[[test]]
+nodeid = "tests/test_template_types.py::test_default_template"
+reason = "Broken by Email Template change"
+
+[[test]]
+nodeid = "tests/test_template_types.py::test_govuk_banner"
+reason = "Broken by Email Template change"
+
+[[test]]
+nodeid = "tests/test_template_types.py::test_letter_address_format"
+reason = "Broken by postalAdress change"
+
+[[test]]
+nodeid = "tests/test_template_types.py::test_letter_preview_renderer"
+reason = "Broken by postalAdress change"
+
+[[test]]
+nodeid = "tests/test_template_types.py::test_letter_template_shows_date_and_page_count_in_welsh_if_language_set_to_welsh"
+reason = "Welsh language not supported"
+not_applicable = "Welsh-language letters are UK-only"
+
+[[test]]
+nodeid = "tests/test_template_types.py::test_nested_lists_in_lettr_markup"
+reason = "Template structure change"
+twin = ["tests_nl/test_nl_template_types.py::test_nested_lists_in_letter_markup"]
+
+[[test]]
+nodeid = "tests/test_template_types.py::test_rendered_letter_template_for_preview_displays_barcodes_only_if_file_includes_first_page"
+reason = "mdi/barcode/qrcode parts not supported"
+not_applicable = "NL letters carry no Royal Mail MDI barcode/QR code, see test_rendered_letter_template_for_print_can_toggle_notify_tag_and_always_hides_barcodes"
+
+[[test]]
+nodeid = "tests/test_template_types.py::test_rendered_letter_template_for_print_can_toggle_notify_tag_and_always_hides_barcodes"
+reason = "mdi/barcode/qrcode parts not supported"
+twin = ["tests_nl/test_nl_template_types.py::test_rendered_letter_template_for_print_can_toggle_notify_tag_and_always_hides_barcodes"]
+
+[[test]]
+nodeid = "tests/test_template_types.py::test_templates_handle_html_and_redacting"
+reason = "Broken by postalAdress change"
+
+[[test]]
+nodeid = "tests/test_user.py::test_email_address_ends_with"
+reason = "email_domains.txt change breaks this - see tests_nl/test_nl_user.py"
+twin = ["tests_nl/test_nl_user.py::test_email_address_ends_with"]

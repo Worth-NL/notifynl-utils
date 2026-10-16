@@ -38,7 +38,6 @@ def _index_rows(rows):
     return {row.index for row in rows}
 
 
-@pytest.mark.skip(reason="[NOTIFYNL] Dutch postal address implementation")
 @pytest.mark.parametrize(
     "template_type, expected",
     (
@@ -293,7 +292,6 @@ def test_get_rows_only_iterates_over_file_once(mocker):
         ),
     ],
 )
-@pytest.mark.skip(reason="[NOTIFYNL] Dutch phone number implementation breaks this test")
 def test_get_annotated_rows(file_contents, template_type, expected):
     recipients = RecipientCSV(
         file_contents, template=_sample_template(template_type, "hello ((name))"), max_initial_rows_shown=1
@@ -335,7 +333,6 @@ def test_get_rows_with_errors():
         ("sms", 500, "phone number\n", "07900900123\n", "12345"),
     ],
 )
-@pytest.mark.skip(reason="[NOTIFYNL] Dutch phone number implementation breaks this test")
 def test_big_list_validates_right_through(template_type, row_count, header, filler, row_with_error):
     big_csv = RecipientCSV(
         header + (filler * (row_count - 1) + row_with_error),
@@ -469,7 +466,6 @@ def test_empty_column_names():
     assert recipient_csv[0]["name"].data == "baz"
 
 
-@pytest.mark.skip(reason="[NOTIFYNL] Dutch phone number implementation breaks this test")
 @pytest.mark.parametrize(
     "contents",
     (
@@ -632,7 +628,6 @@ def test_column_headers(file_contents, template_type, expected, expected_missing
     assert recipients.has_errors == bool(expected_missing)
 
 
-@pytest.mark.skip(reason="[NOTIFYNL] PostalAddress issue")
 @pytest.mark.parametrize(
     "content",
     [
@@ -686,7 +681,6 @@ def test_recipient_column(content, file_contents, template_type):
     assert RecipientCSV(file_contents, template=_sample_template(template_type, content)).has_recipient_columns
 
 
-@pytest.mark.skip(reason="[NOTIFYNL] PostalAdress issue")
 @pytest.mark.parametrize(
     "file_contents,template_type,rows_with_bad_recipients,rows_with_missing_data",
     [
@@ -817,7 +811,6 @@ def test_bad_or_missing_data(
         ),
     ],
 )
-@pytest.mark.skip(reason="[NOTIFYNL] Dutch phone number implementation breaks this test")
 def test_international_recipients(file_contents, rows_with_bad_recipients, expectected_count):
     recipients = RecipientCSV(
         file_contents,
@@ -828,7 +821,6 @@ def test_international_recipients(file_contents, rows_with_bad_recipients, expec
     assert _index_rows(recipients.rows_with_bad_recipients) == rows_with_bad_recipients
 
 
-@pytest.mark.skip(reason="[NOTIFYNL] Dutch phone number implementation breaks this test")
 @pytest.mark.parametrize(
     "file_contents, rows_with_bad_recipients, block_ofcom_protected_block",
     [
@@ -873,7 +865,6 @@ def test_ofcom_recipients_in_ofcom_protected_block(
         ({}, False),
     ),
 )
-@pytest.mark.skip(reason="[NOTIFYNL] Dutch phone number implementation breaks this test")
 def test_international_sms_limit(extra_args, too_many):
     recipients = RecipientCSV(
         """
@@ -910,7 +901,6 @@ def test_international_sms_limit_doesnt_apply_for_email(allow_international, rem
 
 
 @pytest.mark.parametrize("allow_international_sms", (True, False))
-@pytest.mark.skip(reason="[NOTIFYNL] Dutch phone number implementation breaks this test")
 def test_international_sms_limit_handles_negative_limit(allow_international_sms):
     recipients = RecipientCSV(
         """
@@ -925,7 +915,6 @@ def test_international_sms_limit_handles_negative_limit(allow_international_sms)
     assert not recipients.has_errors
 
 
-@pytest.mark.skip(reason="[NOTIFYNL] Dutch phone number implementation breaks this test")
 def test_international_sms_limit_is_ok_with_uk_number_if_no_international_remaining():
     recipients = RecipientCSV(
         """
@@ -964,7 +953,6 @@ def test_international_sms_limit_is_ok_with_uk_number_if_no_international_remain
         ),
     ],
 )
-@pytest.mark.skip(reason="[NOTIFYNL] Dutch phone number implementation breaks this test")
 def test_sms_to_uk_landlines(file_contents, rows_with_bad_recipients):
     recipients = RecipientCSV(
         file_contents,
@@ -1033,7 +1021,6 @@ def test_errors_when_too_many_rows():
         ),
     ],
 )
-@pytest.mark.skip(reason="[NOTIFYNL] Dutch phone number implementation breaks this test")
 def test_recipient_guestlist(file_contents, template_type, guestlist, count_of_rows_with_errors):
     recipients = RecipientCSV(file_contents, template=_sample_template(template_type), guestlist=guestlist)
 
@@ -1127,7 +1114,6 @@ def test_allows_invalid_numbers_when_should_validate_phone_number_set_to_false()
     assert dict(_index_rows(recipients.rows_with_errors)) == {}
 
 
-@pytest.mark.skip("[NOTIFYNL] Broken by conditional placeholders change")
 def test_detects_rows_which_result_in_empty_messages():
     template = SMSMessageTemplate(
         {"content": "((show??content))", "template_type": "sms"},
@@ -1292,7 +1278,6 @@ def test_recipients_can_be_accessed_by_index(index, expected_row):
 
 
 @pytest.mark.parametrize("international_sms", (True, False))
-@pytest.mark.skip(reason="[NOTIFYNL] Dutch phone number implementation breaks this test")
 def test_multiple_sms_recipient_columns(international_sms):
     recipients = RecipientCSV(
         """
@@ -1314,7 +1299,6 @@ def test_multiple_sms_recipient_columns(international_sms):
 @pytest.mark.parametrize(
     "column_name", ("phone_number", "phonenumber", "phone number", "phone-number", "p h o n e  n u m b e r")
 )
-@pytest.mark.skip(reason="[NOTIFYNL] Dutch phone number implementation breaks this test")
 def test_multiple_sms_recipient_columns_with_missing_data(column_name):
     recipients = RecipientCSV(
         f"""
@@ -1423,7 +1407,6 @@ def test_multi_line_placeholders_work():
     assert recipients[0].personalisation["data"] == "a\nb\n\nc"
 
 
-@pytest.mark.skip(reason="[NOTIFYNL] Dutch postal address implementation - now on test_nl_test_recipients.py")
 @pytest.mark.parametrize(
     "extra_args, expected_errors, expected_bad_rows",
     (
@@ -1448,7 +1431,6 @@ def test_accepts_international_addresses_when_allowed(extra_args, expected_error
     assert recipients[0].as_postal_address.country == Country("Fiji")
 
 
-@pytest.mark.skip(reason="[NOTIFYNL] Dutch postal address implementation - now on test_nl_test_recipients.py")
 def test_address_validation_speed():
     # We should be able to validate 1000 lines of address data in about
     # a second – if it starts to get slow, something is inefficient
@@ -1514,7 +1496,6 @@ def test_recipient_csv_checks_should_validate_flag(should_validate):
     assert recipients._get_error_for_field.called is should_validate
 
 
-@pytest.mark.skip(reason="[NOTIFYNL] Dutch postal address implementation - now on test_nl_test_recipients.py")
 def test_errors_on_qr_codes_with_too_much_data():
     template = _sample_template("letter", content="QR: ((qr_code))")
     template.is_message_empty = Mock(return_value=False)

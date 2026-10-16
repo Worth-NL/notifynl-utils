@@ -6,7 +6,6 @@ from notifications_utils.user import (
 )
 
 
-@pytest.mark.skip(reason="[NOTIFYNL] email_domains.txt change breaks this - see tests_nl/test_nl_user.py")
 @pytest.mark.parametrize(
     "email_address, expected_result",
     [
