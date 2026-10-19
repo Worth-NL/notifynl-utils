@@ -145,42 +145,6 @@ jobs:
           emoji: false
           custom-arguments: --junitxml=reports/pytest-unit.xml
 
-      # dorny counts xfailed tests as skipped and can't see superseded upstream tests (left out of the run): take the
-      # xfailed tests out of the report and show both counts in the badge, so passed and skipped stay exact
-      - name: Split xfailed and superseded tests from the test report
-        id: counts
+      # dorny/test-reporter, with xfailed and superseded tests counted separately from skipped
+      - uses: Worth-NL/ci-workflows/.github/actions/pytest-report@feat/implement-superseded-tests
         if: ${{ steps.compare.outputs.needsBumping == 'false' && !cancelled() }}
-        shell: python3 {0}
-        run: |
-          import os
-          import xml.etree.ElementTree as ET
-          from pathlib import Path
-
-          report, title = Path("reports/pytest-unit.xml"), "PYTEST"
-          if report.exists():
-              tree = ET.parse(report)
-              xfailed = 0
-              for suite in tree.iter("testsuite"):
-                  cases = [c for c in suite.findall("testcase") if c.find("skipped[@type='pytest.xfail']") is not None]
-                  for case in cases:
-                      suite.remove(case)
-                  for attr in ("tests", "skipped"):
-                      suite.set(attr, str(int(suite.get(attr, 0)) - len(cases)))
-                  xfailed += len(cases)
-              tree.write(report, encoding="utf-8", xml_declaration=True)
-              if xfailed:
-                  title += f" · {xfailed} xfailed"
-              if (superseded := tree.find(".//property[@name='superseded']")) is not None:
-                  title += f" · {superseded.get('value')} superseded"
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
-              output.write(f"badge_title={title}\n")
-
-      - uses: dorny/test-reporter@v2
-        if: ${{ steps.compare.outputs.needsBumping == 'false' && !cancelled() }}
-        with:
-          name: PyTest Tests
-          path: reports/pytest-*.xml
-          reporter: java-junit
-          only-summary: true
-          use-actions-summary: false
-          badge-title: ${{ steps.counts.outputs.badge_title || 'PYTEST' }}
