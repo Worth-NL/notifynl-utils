@@ -15,9 +15,9 @@ in ``superseded_tests_nl.toml`` at the repo root, each with the NL test(s) that 
   Upstream changes to the test usually don't apply to NL.
 * ``not_applicable``: why the tested feature doesn't exist in NL (e.g. NHS organisation types).
 
-An entry with any of these is dropped from the run without being reported. An entry with none is still shown as a
-skip (or a strict xfail with ``xfail = true``), so the skipped count is the number of upstream tests that have no NL
-replacement yet.
+An entry with any of these is dropped from the run; the summary line only counts it (``12 passed, 4 superseded``). An
+entry with none is still shown as a skip (or a strict xfail with ``xfail = true``), so the skipped count is the number
+of upstream tests that have no NL replacement yet.
 
 Load it from a root ``conftest.py`` with ``pytest_plugins = ["notifications_utils.testing_nl.superseded_tests"]``.
 
@@ -34,9 +34,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
+from _pytest import terminal
 
 MANIFEST_NAME = "superseded_tests_nl.toml"
 NL_TAG = "[NOTIFYNL]"
+SUPERSEDED_STAT = "superseded"
 
 _ALLOWED_KEYS = {"nodeid", "reason", "twin", "counterpart", "not_applicable", "xfail"}
 
@@ -192,6 +194,7 @@ class RunSuperseded:
 
 _manifest_key = pytest.StashKey[Manifest]()
 _problems_key = pytest.StashKey[list[str]]()
+_superseded_key = pytest.StashKey[list[str]]()
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -220,6 +223,7 @@ def pytest_configure(config: pytest.Config) -> None:
     except (ValueError, tomllib.TOMLDecodeError) as e:
         raise pytest.UsageError(f"{MANIFEST_NAME}: {e}") from e
     config.stash[_manifest_key] = Manifest(entries)
+    _register_superseded_stat()
     if config.getoption("nl_verify") and config.args_source == pytest.Config.ArgsSource.ARGS:
         raise pytest.UsageError("--nl-verify checks the whole suite, run it without test paths")
     if config.getoption("nl_run_superseded"):
@@ -230,6 +234,14 @@ def pytest_configure(config: pytest.Config) -> None:
         config.option.tbstyle = "no"
         config.option.reportchars = ""
         config.pluginmanager.register(RunSuperseded(config.stash[_manifest_key]), "nl-run-superseded")
+
+
+def _register_superseded_stat() -> None:
+    # pytest turns the summary line of a clean run yellow when it holds a stat pytest doesn't know, so add "superseded"
+    # to its own stats. These names are private: if a pytest upgrade renames them, the count still shows, in yellow.
+    if SUPERSEDED_STAT not in getattr(terminal, "KNOWN_TYPES", (SUPERSEDED_STAT,)):
+        terminal.KNOWN_TYPES = (*terminal.KNOWN_TYPES, SUPERSEDED_STAT)
+    getattr(terminal, "_color_for_type", {}).setdefault(SUPERSEDED_STAT, "green")
 
 
 @pytest.hookimpl(tryfirst=True)  # see the full collection, before -k/-m deselect anything
@@ -243,7 +255,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
         return
 
     show_superseded = config.getoption("nl_show_superseded")
-    kept = []
+    kept, superseded = [], []
     for item in items:
         entry = manifest.entry_for(item.nodeid)
         if entry is None:
@@ -254,8 +266,11 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
         elif show_superseded:
             item.add_marker(pytest.mark.skip(reason=_superseded_reason(entry)))
             kept.append(item)
-        # otherwise the item is dropped without calling pytest_deselected, so it isn't reported at all
+        else:
+            # dropped without calling pytest_deselected, so it's neither skipped nor deselected: only counted
+            superseded.append(item.nodeid)
     items[:] = kept
+    config.stash[_superseded_key] = superseded
 
 
 def _gap_marker(entry: Entry) -> pytest.MarkDecorator:
@@ -290,5 +305,19 @@ def pytest_terminal_summary(terminalreporter, config: pytest.Config) -> None:
 
 
 def pytest_sessionfinish(session: pytest.Session) -> None:
-    if session.config.stash.get(_problems_key, []):
+    config = session.config
+    superseded = config.stash.get(_superseded_key, [])
+    if hasattr(config, "workeroutput"):  # xdist worker: the controller prints the summary line
+        config.workeroutput["nl_superseded"] = superseded
+    elif superseded and (terminalreporter := config.pluginmanager.get_plugin("terminalreporter")):
+        terminalreporter.stats.setdefault(SUPERSEDED_STAT, []).extend(superseded)
+
+    if config.stash.get(_problems_key, []):
         session.exitstatus = pytest.ExitCode.TESTS_FAILED
+
+
+@pytest.hookimpl(optionalhook=True)
+def pytest_testnodedown(node, error) -> None:
+    # xdist controller: every worker collects the whole suite, so any worker's list is the full one
+    if (superseded := getattr(node, "workeroutput", {}).get("nl_superseded")) is not None:
+        node.config.stash[_superseded_key] = superseded

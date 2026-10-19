@@ -6,7 +6,8 @@
   in a `superseded_tests_nl.toml` manifest instead of skipping them inline, so upstream test files can stay
   identical to alphagov's. Load it from a root `conftest.py` with
   `pytest_plugins = ["notifications_utils.testing_nl.superseded_tests"]`; run `--nl-verify` in CI to check the
-  manifest, and `--nl-run-superseded` to find entries that pass again.
+  manifest, and `--nl-run-superseded` to find entries that pass again. The summary line counts the upstream tests
+  it leaves out, e.g. `120 passed, 4 superseded`.
 
 ## 102.0.1
 

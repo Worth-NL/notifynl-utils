@@ -50,17 +50,29 @@ not_applicable = "NHS doesn't exist in NL"
 
 
 @pytest.mark.parametrize("args", [(), ("-n", "2")], ids=["serial", "xdist"])
-def test_superseded_tests_are_not_reported(project, args):
+def test_superseded_tests_are_only_counted(project, args):
     write_manifest(project, HIDE_ALL)
 
     result = project.runpytest_subprocess("--junitxml=junit.xml", *args)
 
     result.assert_outcomes(passed=4)
+    assert result.parseoutcomes()["superseded"] == 4
     result.stdout.no_fnmatch_line("*skipped*")
     result.stdout.no_fnmatch_line("*deselected*")
     junit = project.path.joinpath("junit.xml").read_text()
     assert 'skipped="0"' in junit
     assert 'tests="4"' in junit
+
+
+def test_superseded_count_keeps_a_clean_run_green(project):
+    write_manifest(project, HIDE_ALL)
+
+    result = project.runpytest("--color=yes")
+
+    summary = result.stdout.lines[-1]
+    assert "4 superseded" in summary
+    assert "\x1b[32m" in summary  # green
+    assert "\x1b[33m" not in summary  # yellow
 
 
 def test_tests_without_twin_are_still_skipped(project):
@@ -90,6 +102,7 @@ def test_show_superseded_reports_hidden_tests_as_skipped(project):
     result = project.runpytest("-rs", "--nl-show-superseded")
 
     result.assert_outcomes(passed=4, skipped=4)
+    assert "superseded" not in result.parseoutcomes()
     result.stdout.fnmatch_lines(
         [
             "*superseded by twin test_foo_nl.py::test_upstream*",
