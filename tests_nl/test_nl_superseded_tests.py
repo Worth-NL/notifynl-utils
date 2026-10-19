@@ -62,6 +62,7 @@ def test_superseded_tests_are_only_counted(project, args):
     junit = project.path.joinpath("junit.xml").read_text()
     assert 'skipped="0"' in junit
     assert 'tests="4"' in junit
+    assert '<property name="superseded" value="4" />' in junit
 
 
 def test_superseded_count_keeps_a_clean_run_green(project):
@@ -113,9 +114,10 @@ def test_show_superseded_reports_hidden_tests_as_skipped(project):
 
 
 def test_without_manifest_nothing_changes(project):
-    result = project.runpytest()
+    result = project.runpytest("--junitxml=junit.xml")
 
     result.assert_outcomes(passed=4, failed=4)
+    assert "superseded" not in project.path.joinpath("junit.xml").read_text()
 
 
 @pytest.mark.parametrize(

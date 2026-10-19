@@ -15,9 +15,10 @@ in ``superseded_tests_nl.toml`` at the repo root, each with the NL test(s) that 
   Upstream changes to the test usually don't apply to NL.
 * ``not_applicable``: why the tested feature doesn't exist in NL (e.g. NHS organisation types).
 
-An entry with any of these is dropped from the run; the summary line only counts it (``12 passed, 4 superseded``). An
-entry with none is still shown as a skip (or a strict xfail with ``xfail = true``), so the skipped count is the number
-of upstream tests that have no NL replacement yet.
+An entry with any of these is dropped from the run; the summary line only counts it (``12 passed, 4 superseded``), and
+so does a ``--junitxml`` report, as a ``superseded`` property of the test suite. An entry with none is still shown as a
+skip (or a strict xfail with ``xfail = true``), so the skipped count is the number of upstream tests that have no NL
+replacement yet.
 
 Load it from a root ``conftest.py`` with ``pytest_plugins = ["notifications_utils.testing_nl.superseded_tests"]``.
 
@@ -34,7 +35,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
-from _pytest import terminal
+from _pytest import junitxml, terminal
 
 MANIFEST_NAME = "superseded_tests_nl.toml"
 NL_TAG = "[NOTIFYNL]"
@@ -304,16 +305,27 @@ def pytest_terminal_summary(terminalreporter, config: pytest.Config) -> None:
         terminalreporter.line(f"ERROR {problem}", red=True)
 
 
+@pytest.hookimpl(tryfirst=True)  # before junitxml writes its report
 def pytest_sessionfinish(session: pytest.Session) -> None:
     config = session.config
     superseded = config.stash.get(_superseded_key, [])
     if hasattr(config, "workeroutput"):  # xdist worker: the controller prints the summary line
         config.workeroutput["nl_superseded"] = superseded
-    elif superseded and (terminalreporter := config.pluginmanager.get_plugin("terminalreporter")):
-        terminalreporter.stats.setdefault(SUPERSEDED_STAT, []).extend(superseded)
+    elif superseded:
+        if terminalreporter := config.pluginmanager.get_plugin("terminalreporter"):
+            terminalreporter.stats.setdefault(SUPERSEDED_STAT, []).extend(superseded)
+        _add_junitxml_property(config, len(superseded))
 
     if config.stash.get(_problems_key, []):
         session.exitstatus = pytest.ExitCode.TESTS_FAILED
+
+
+def _add_junitxml_property(config: pytest.Config, count: int) -> None:
+    # CI test reporters (dorny/test-reporter) only count the tests in the junit xml, so they can read the superseded
+    # count from this property. xml_key is private: if a pytest upgrade renames it, the property is left out.
+    xml_key = getattr(junitxml, "xml_key", None)
+    if xml_key is not None and (xml := config.stash.get(xml_key, None)) is not None:
+        xml.add_global_property(SUPERSEDED_STAT, count)
 
 
 @pytest.hookimpl(optionalhook=True)
