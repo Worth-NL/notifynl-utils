@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## 102.0.3
+
+* New pytest plugin `notifications_utils.testing_nl.superseded_tests`: list upstream tests that don't hold for NL
+  in a `superseded_tests_nl.toml` manifest instead of skipping them inline, so upstream test files can stay
+  identical to alphagov's. Load it from a root `conftest.py` with
+  `pytest_plugins = ["notifications_utils.testing_nl.superseded_tests"]`; run `--nl-verify` in CI to check the
+  manifest, and `--nl-run-superseded` to find entries that pass again. The summary line counts the upstream tests
+  it leaves out, e.g. `120 passed, 4 superseded`, and a `--junitxml` report has it as a `superseded` property.
+
+## 102.0.2
+
+* CI: Trivy scans the repository's locked dependencies (`uv.lock`, `requirements_for_test.txt`) for
+  vulnerabilities and secrets on every PR to main, every push to main and nightly, and uploads the results to
+  GitHub code scanning. No changes to the package itself.
+
 ## 102.0.1
 
 * Markdown links (`[text](url)`) keep a `&` in the url HTML-escaped (`&amp;`) again, as mistune 0.8.4

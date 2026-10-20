@@ -63,7 +63,6 @@ def test_html_email_inserts_body():
     )
 
 
-@pytest.mark.skip("[NOTIFYNL] Broken by Email Template change")
 @pytest.mark.parametrize("content", ("DOCTYPE", "html", "body", "GOV.UK", "hello world"))
 def test_default_template(content):
     assert content in str(
@@ -77,7 +76,6 @@ def test_default_template(content):
     )
 
 
-@pytest.mark.skip("[NOTIFYNL] Broken by Email Template change")
 @pytest.mark.parametrize("show_banner", (True, False))
 def test_govuk_banner(show_banner):
     email = HTMLEmailTemplate(
@@ -185,7 +183,6 @@ def test_alt_text_with_brand_text_and_govuk_banner_shown():
     assert 'alt="Notify Logo"' not in email
 
 
-@pytest.mark.skip("[NOTIFYNL] Broken by Email Template change")
 def test_alt_text_with_no_brand_text_and_govuk_banner_shown():
     email = str(
         HTMLEmailTemplate(
@@ -689,7 +686,6 @@ def test_phone_templates_normalise_whitespace(template_class):
     )
 
 
-@pytest.mark.skip("[NOTIFYNL] Broken by postalAdress change")
 @freeze_time("2012-12-12 12:12:12")
 @mock.patch("notifications_utils.template.LetterPreviewTemplate.jinja_template.render")
 @mock.patch("notifications_utils.template.unlink_govuk_escaped")
@@ -743,7 +739,7 @@ def test_phone_templates_normalise_whitespace(template_class):
     [
         (None, ""),
         ("", ""),
-        pytest.param(
+        (
             """
             The Pension Service
             Mail Handling Site A
@@ -763,10 +759,6 @@ def test_phone_templates_normalise_whitespace(template_class):
                 "Email: fpc.customercare@dwp.gsi.gov.uk<br>"
                 "Monday - Friday  8am - 6pm<br>"
                 "www.gov.uk"
-            ),
-            marks=pytest.mark.skip(
-                reason="[NOTIFYNL] contact_block now always renders as a single line "
-                "- see tests_nl/test_nl_template_types.py"
             ),
         ),
     ],
@@ -829,7 +821,6 @@ def test_letter_preview_renderer(
     unlink_govuk.assert_not_called()
 
 
-@pytest.mark.skip("[NOTIFYNL] Broken by postalAdress change")
 @freeze_time("2001-01-01 12:00:00.000000")
 @mock.patch("notifications_utils.template.LetterPreviewTemplate.jinja_template.render")
 def test_letter_preview_renderer_without_mocks(jinja_template):
@@ -902,7 +893,6 @@ def test_too_many_pages_raises_for_unknown_page_count(template_class):
         template.too_many_pages  # noqa
 
 
-@pytest.mark.skip(reason="[NOTIFYNL] Welsh language not supported")
 @freeze_time("2023-10-31 00:00:01")
 def test_letter_template_shows_date_and_page_count_in_welsh_if_language_set_to_welsh():
     template = BeautifulSoup(
@@ -1443,7 +1433,6 @@ def test_is_message_empty_sms_templates(content, values, prefix, expected_result
         ("Some content ((placeholder))", {"placeholder": ""}, False),
     ],
 )
-@pytest.mark.skip("[NOTIFYNL] Broken by conditional placeholders change")
 def test_is_message_empty_email_and_letter_templates(
     template_class,
     template_type,
@@ -1509,7 +1498,6 @@ def test_is_message_empty_email_and_letter_templates_tries_not_to_count_chars(
     assert mock_content.called is False
 
 
-@pytest.mark.skip("[NOTIFYNL] Broken by postalAdress change")
 @pytest.mark.parametrize(
     "template_class, template_type, extra_args, expected_field_calls",
     [
@@ -1872,7 +1860,6 @@ def test_html_template_can_inject_personalisation_with_special_characters():
     )
 
 
-@pytest.mark.skip("[NOTIFYNL] Broken by postalAdress change")
 @pytest.mark.parametrize(
     "address, expected",
     [
@@ -2253,7 +2240,6 @@ def test_letter_preview_uses_non_breaking_hyphens():
     )
 
 
-@pytest.mark.skip(reason="[NOTIFYNL] Template structure change")
 @freeze_time("2001-01-01 12:00:00.000000")
 def test_nested_lists_in_lettr_markup():
     template_content = str(
@@ -2558,7 +2544,6 @@ def test_letter_qr_codes_with_too_much_data(content, values, should_error):
         assert error is None
 
 
-@pytest.mark.skip(reason="[NOTIFYNL] mdi/barcode/qrcode parts not supported")
 @pytest.mark.parametrize(
     "extra_template_kwargs, should_have_notify_tag",
     (
@@ -2577,7 +2562,6 @@ def test_rendered_letter_template_for_print_can_toggle_notify_tag_and_always_hid
     assert "#mdi,\n  #barcode,\n  #qrcode {\n    display: none;\n  }" in str(template).strip()
 
 
-@pytest.mark.skip(reason="[NOTIFYNL] mdi/barcode/qrcode parts not supported")
 @pytest.mark.parametrize("includes_first_page", [True, False])
 def test_rendered_letter_template_for_preview_displays_barcodes_only_if_file_includes_first_page(includes_first_page):
     template = LetterPreviewTemplate(
