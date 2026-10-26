@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 102.0.4
+
+* CI only, nothing changes for consumers: the PR workflow takes the `pytest-report` action from ci-workflows'
+  `main` instead of a feature branch.
+
 ## 102.0.3
 
 * New pytest plugin `notifications_utils.testing_nl.superseded_tests`: list upstream tests that don't hold for NL
