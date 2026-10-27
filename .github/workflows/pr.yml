@@ -146,5 +146,5 @@ jobs:
           custom-arguments: --junitxml=reports/pytest-unit.xml
 
       # dorny/test-reporter, with xfailed and superseded tests counted separately from skipped
-      - uses: Worth-NL/ci-workflows/.github/actions/pytest-report@feat/implement-superseded-tests
+      - uses: Worth-NL/ci-workflows/.github/actions/pytest-report@main
         if: ${{ steps.compare.outputs.needsBumping == 'false' && !cancelled() }}
