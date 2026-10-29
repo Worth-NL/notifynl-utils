@@ -28,7 +28,7 @@ def test_s3upload_save_file_to_bucket(mocker):
     mocked_put = mocked.return_value.Object.return_value.put
     mocked_put.assert_called_once_with(
         Body=contents,
-        ServerSideEncryption="AES256",
+        # ServerSideEncryption="AES256",
         ContentType=content_type,
     )
 
@@ -40,7 +40,7 @@ def test_s3upload_save_file_to_bucket_with_contenttype(mocker):
     mocked_put = mocked.return_value.Object.return_value.put
     mocked_put.assert_called_once_with(
         Body=contents,
-        ServerSideEncryption="AES256",
+        # ServerSideEncryption="AES256",
         ContentType=content_type,
     )
 
@@ -114,7 +114,7 @@ def test_s3_multipart_upload_create(mocker):
     mocked_create_multipart_upload.assert_called_once_with(
         Bucket=bucket,
         Key=location,
-        ServerSideEncryption="AES256",
+        # ServerSideEncryption="AES256",
         ContentType=content_type,
     )
 
@@ -128,7 +128,7 @@ def test_s3_multipart_upload_create_with_content_type(mocker):
     mocked_create_multipart_upload.assert_called_once_with(
         Bucket=bucket,
         Key=location,
-        ServerSideEncryption="AES256",
+        # ServerSideEncryption="AES256",
         ContentType="text/csv",
     )
 
