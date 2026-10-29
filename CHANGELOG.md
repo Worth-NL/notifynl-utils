@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 102.0.5
+
+* Raised dependency floors to clear Trivy findings for everything that installs notifications-utils: pypdf
+  `>=6.21.2`, requests `>=2.33.0`, opentelemetry-api `>=1.45.1`, urllib3 `>=2.8.0`, werkzeug `>=3.1.9`, plus new
+  floors for certifi `>=2026.10.18` (via requests) and dnspython `>=2.9.0` (via gunicorn[eventlet]). Consumers can
+  drop their own `[NOTIFYNL]` pins for these packages from `requirements_nl.in` after bumping to this version.
+
 ## 102.0.4
 
 * CI only, nothing changes for consumers: the PR workflow takes the `pytest-report` action from ci-workflows'
