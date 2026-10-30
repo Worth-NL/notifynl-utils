@@ -4,6 +4,9 @@ from boto3 import client, resource
 from botocore.exceptions import ClientError as BotoClientError
 from flask import current_app
 
+# [NOTIFYNL] S3 lives in MinIO, not AWS: use the MinIO-configured boto3 client/resource
+# (endpoint_url + credentials from MINIO_URL / MINIO_ACCESS_KEY / MINIO_SECRET_KEY).
+from notifications_utils.clients.minio import client, resource
 from notifications_utils.eventlet import EventletTimeout
 from notifications_utils.exception_handling import extract_reraise_chained_exception
 
@@ -22,7 +25,8 @@ def s3upload(
 
     key = _s3.Object(bucket_name, file_location)
 
-    put_args = {"Body": filedata, "ServerSideEncryption": "AES256", "ContentType": content_type}
+    # [NOTIFYNL] no ServerSideEncryption: MinIO without a KMS rejects SSE-S3 (AES256)
+    put_args = {"Body": filedata, "ContentType": content_type}
 
     if tags:
         tags = urlencode(tags)
@@ -63,7 +67,8 @@ S3_MULTIPART_UPLOAD_MIN_PART_SIZE = 5 * 1024 * 1024  # 5MB minimum multi part up
 def s3_multipart_upload_create(bucket_name, file_location, content_type="binary/octet-stream"):
     s3 = client("s3")
 
-    args = {"Bucket": bucket_name, "Key": file_location, "ServerSideEncryption": "AES256", "ContentType": content_type}
+    # [NOTIFYNL] no ServerSideEncryption: MinIO without a KMS rejects SSE-S3 (AES256)
+    args = {"Bucket": bucket_name, "Key": file_location, "ContentType": content_type}
 
     try:
         response = s3.create_multipart_upload(**args)

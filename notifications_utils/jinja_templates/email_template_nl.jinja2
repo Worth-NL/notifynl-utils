@@ -15,6 +15,8 @@
       }
     }
     @media only print {
+      .logo__crown { display: none !important; }
+      .logo__text, .logo__dot { color: #000000 !important; }
       .brand__banner {
         border-bottom: solid 1pt #000000 !important;
         background-color: unset !important;
@@ -29,31 +31,156 @@
 {% endif %}
 <span style="display: none;font-size: 1px;color: #fff; max-height: 0;" hidden>{{ preheader }}…</span>
 {% if govuk_banner %}
+  {# [NOTIFYNL] Logius-banner (logius.nl + Notify.NL) i.p.v. de rijksoverheid-banner van Worth #}
   <table role="presentation" width="100%" style="border-collapse: collapse;min-width: 100%;width: 100% !important;" cellpadding="0" cellspacing="0" border="0">
     <tr>
-      <td width="100%" height="60" class="brand__banner">
+      <td width="100%" height="{% if rebrand %}60{% else %}53{% endif %}" bgcolor="{% if rebrand %}#1d70b8{% else %}#0b0c0c{% endif %}" class="brand__banner">
+        <!--[if (gte mso 9)|(IE)]>
+          <table role="presentation" width="580" align="center" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse;width: 580px;">
+            <tr>
+              <td>
+        <![endif]-->
         <table role="presentation" width="100%" style="border-collapse: collapse;max-width: 580px;" cellpadding="0" cellspacing="0" border="0" align="center">
           <tr>
-            <td valign="bottom">
-              <a href="https://www.rijksoverheid.nl/" title="Ga naar de website van de rijksoverheid." style="text-decoration: none;color: #fff">
-                <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse;margin:0 auto;display:table;">
+            {% if rebrand %}
+            <!--[if mso]>
+            <td width="70" valign="middle">
+              <a href="https://www.logius.nl" title="Ga naar de logius.nl homepage" style="text-decoration: none;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse;">
                   <tr>
-                    <td valign="bottom" height="60" class="logo__goverment">
-                      <img  alt="rijksoverheid logo"
-                            src="{{ asset_path ~ 'images/branding/rijksoverheid_logo.png' }}"
-                            height="125"
-                            width="50"/>
+                    <td style="padding-left: 10px">
+                      <img src="https://www.logius.nl/themes/custom/logius/logo.svg" alt="" height="60" border="0" style="Margin-top: 2px;">
+                    </td>
+                    <td style="font-size: 28px; line-height: 1.315789474; padding-left: 8px; padding-bottom: 8px">
+                      <span style="
+                        font-family: Helvetica, Arial, sans-serif;
+                        font-weight: 700;
+                        color: #ffffff;
+                        text-decoration: none;
+                        vertical-align:middle;
+                        display: inline-block"
+                      >Notify<span style="
+                          color: #00ffe0;
+                          font-family: Georgia, Times New Roman, sans-serif;
+                          font-size: 32px;
+                          mso-text-raise:7px">.</span>NL</span>
                     </td>
                   </tr>
                 </table>
               </a>
             </td>
+            <![endif]-->
+            <!--[if !mso]><!-->
+            <td width="70" valign="bottom">
+              <a href="https://www.logius.nl" title="Ga naar de logius.nl homepage" style="text-decoration: none;color: #fff">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse;">
+                  <tr>
+                    <td style="font-size: 28px; line-height: 1; padding-left: 10px" valign="bottom" height="60" class="logo__crown">
+                      <img
+                        src="https://www.logius.nl/themes/custom/logius/logo.svg"
+                        alt=""
+                        height="60"
+                        border="0"
+                        style="Margin-top: 2px; max-height: 60px"
+                        aria-hidden="true"
+                      >
+                    </td>
+                    <td style="font-size: 28px; line-height: 2.1428571429; padding-left: 8px;" valign="bottom" height="60" class="logo__text">
+                      <span aria-label="Notify.NL" style="
+                        font-family: Helvetica, Arial, 'Noto Sans', sans-serif;
+                        font-weight: 700;
+                        text-decoration: none;
+                        vertical-align:middle;
+                        display: inline-block;
+                      ">Notify<span style="
+                        font-family: Georgia, Times New Roman, Times, sans-serif;
+                        color: #00ffe0;
+                        display: inline-block;
+                        text-indent: 0.04em;
+                        font-size: 32px;
+                        line-height: 1.35;
+                        vertical-align: top;
+                        margin-right: 0.05em;" class="logo__dot">.</span>NL</span>
+                    </td>
+                  </tr>
+                </table>
+              </a>
+            </td>
+            <!--<![endif]-->
+            {% else %}
+            <td width="70" valign="middle">
+              <a href="https://www.logius.nl" title="Ga naar de logius.nl homepage" style="text-decoration: none">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse;">
+                  <tr>
+                    <td style="padding-left: 10px" class="logo__crown">
+                      <img
+                        src="https://www.logius.nl/themes/custom/logius/logo.svg"
+                        alt=""
+                        height="60"
+                        border="0"
+                        style="Margin-top: 2px; max-height: 60px"
+                      >
+                    </td>
+                    <td style="font-size: 28px; line-height: 1.315789474; Margin-top: 4px; padding-left: 8px;" class="logo__text">
+                      <span style="
+                        font-family: Helvetica, Arial, 'Noto Sans', sans-serif;
+                        font-weight: 700;
+                        color: #ffffff;
+                        text-decoration: none;
+                        vertical-align:middle;
+                        display: inline-block;
+                          ">Notify.NL</span>
+                    </td>
+                  </tr>
+                </table>
+              </a>
+            </td>
+            {% endif %}
           </tr>
         </table>
+        <!--[if (gte mso 9)|(IE)]>
+              </td>
+            </tr>
+          </table>
+        <![endif]-->
       </td>
     </tr>
   </table>
-{%endif%}
+  {% if not rebrand %}
+  <table
+      role="presentation"
+      class="content"
+      align="center"
+      cellpadding="0"
+      cellspacing="0"
+      border="0"
+      style="border-collapse: collapse;max-width: 580px; width: 100% !important;"
+      width="100%"
+  >
+    <tr>
+      <td width="10" height="10" valign="middle"></td>
+      <td>
+        <!--[if (gte mso 9)|(IE)]>
+          <table role="presentation" width="560" align="center" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse;width: 560px;">
+            <tr>
+              <td height="10">
+        <![endif]-->
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse;">
+                  <tr>
+                    <td bgcolor="#1D70B8" width="100%" height="10"></td>
+                  </tr>
+                </table>
+        <!--[if (gte mso 9)|(IE)]>
+              </td>
+            </tr>
+          </table>
+        <![endif]-->
+      </td>
+      <td width="10" valign="middle" height="10"></td>
+    </tr>
+  </table>
+  {% endif %}
+{% endif %}
 {% if brand_banner %}
   {% set brand_colour = brand_colour if brand_colour else '#0b0c0c' %}
   <table role="presentation" width="100%" style="border-collapse: collapse;min-width: 100%;width: 100% !important;" cellpadding="0" cellspacing="0" border="0">
